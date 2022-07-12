@@ -13,6 +13,7 @@ using namespace SPH;
 Real resolution_ref = 0.005;
 /** Domain bounds of the system. */
 BoundingBox system_domain_bounds(Vecd(-0.026, -0.026, -0.021), Vecd(0.026, 0.026, 0.101));
+StdVec<Vecd> observation_location = {Vecd(0.0, 0.0, 0.04)};
 
 /** Physical parameters */
 Real rho = 1265;	// kg/m^3
@@ -124,9 +125,12 @@ int main()
     beam_body.defineParticlesAndMaterial<ElasticSolidParticles, LinearElasticSolid>(rho, Youngs_modulus, poisson_ratio);
     beam_body.generateParticles<ParticleGeneratorLattice>();
 
+    // Define Observer
+    ObserverBody beam_observer(system, "BeamObserver");
+    beam_observer.generateParticles<ObserverParticleGenerator>(observation_location);
     /** topology */
 	BodyRelationInner beam_body_inner(beam_body);
-
+    BodyRelationContact beam_observer_contact(beam_observer, {&beam_body});
 	 /** initialize a time step */
 	TimeStepInitialization beam_initialize(beam_body);
 
@@ -170,8 +174,9 @@ int main()
 
 	/** Output */
 	BodyStatesRecordingToVtp write_states(in_output, system.real_bodies_);
-
-	/* time step begins */
+    RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Real>>
+            write_beam_stress("VonMiesStress", in_output, beam_observer_contact);
+    /* time step begins */
 	GlobalStaticVariables::physical_time_ = 0.0;
 	system.initializeSystemCellLinkedLists();
 	system.initializeSystemConfigurations();
@@ -179,7 +184,7 @@ int main()
 	/** apply initial condition */
 	corrected_configuration.parallel_exec();
 	write_states.writeToFile(0);
-
+    write_beam_stress.writeToFile(0);
 	/** Setup physical parameters. */
 	int ite = 0;
 	Real output_period = end_time / 200.0;
@@ -219,7 +224,8 @@ int main()
 			GlobalStaticVariables::physical_time_ += dt;
 		}
 		tick_count t2 = tick_count::now();
-		write_states.writeToFile();
+        write_beam_stress.writeToFile(ite);
+        write_states.writeToFile();
 		tick_count t3 = tick_count::now();
 		interval += t3 - t2;
 	}
@@ -229,6 +235,8 @@ int main()
 	tick_count::interval_t tt;
 	tt = t4 - t1 - interval;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
+
+    write_beam_stress.newResultTest();
 
 	return 0;
 }
