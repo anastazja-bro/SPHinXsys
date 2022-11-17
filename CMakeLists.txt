@@ -134,6 +134,12 @@ if(BUILD_SPHINXSYS_TESTS)
     add_subdirectory(tests)
 endif()
 
+set(BUILD_WITH_YONGCHUAN_YU_CASES OFF CACHE BOOL "Include Yongchuan Yu's cases into the project?")
+if(BUILD_WITH_YONGCHUAN_YU_CASES)
+add_subdirectory(cases_ycy)
+endif()
+
+
 if(ACTIVATE_CUDA)
     add_subdirectory(cases_test_gpu)
 endif()
