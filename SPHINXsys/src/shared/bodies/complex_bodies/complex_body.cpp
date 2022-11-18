@@ -7,18 +7,12 @@
 
 #include "base_material.h"
 #include "base_particles.h"
-#include "neighbor_relation.h"
+#include "neighborhood.h"
 #include "adaptation.h"
 #include "base_particle_dynamics.h"
 
 namespace SPH
 {
-	//=================================================================================================//
-	TreeBody::TreeBody(SPHSystem &sph_system, SharedPtr<Shape> shape_ptr)
-		: SecondaryStructure(), RealBody(sph_system, shape_ptr), last_branch_id_(0)
-	{
-		root_ =  branches_ptr_keeper_.createPtr<Branch>(this);
-	}
 	//=================================================================================================//
 	void TreeBody::buildParticleConfiguration(ParticleConfiguration &particle_configuration)
 	{
@@ -31,17 +25,19 @@ namespace SPH
 		neighboring_ids.push_back(branches_[1]->inner_particles_[0]);
 		neighboring_ids.push_back(branches_[1]->inner_particles_[1]);
 		/** Build configuration. */
-		const StdLargeVec<Vecd> &pos_n_ =  base_particles_->pos_n_;
-		NeighborRelationInner neighbor_relation_inner(this);
+		const StdLargeVec<Vecd> &pos = base_particles_->pos_;
+		const StdLargeVec<Real> &Vol = base_particles_->Vol_;
+		NeighborBuilderInner neighbor_relation_inner(*this);
 		for (size_t n = 0; n != neighboring_ids.size(); ++n)
 		{
-			Vecd displacement = pos_n_[particle_id] - pos_n_[neighboring_ids[n]];
+			size_t index_j = neighboring_ids[n];
+			ListData list_data_j = std::make_tuple(index_j, pos[index_j], Vol[index_j]);
 			Neighborhood &neighborhood = particle_configuration[particle_id];
-			neighbor_relation_inner(neighborhood, displacement, particle_id, neighboring_ids[n]);
+			neighbor_relation_inner(neighborhood, pos[particle_id], particle_id, list_data_j);
 		}
-		/** Second branch. 
+		/** Second branch.
 		 * The second branch has special parent branch, branch 0, consisting only one point.
-		 * The child branch are two normal branch. 
+		 * The child branch are two normal branch.
 		 */
 		size_t num_ele = branches_[1]->inner_particles_.size();
 		std::vector<size_t> child_ids;
@@ -101,13 +97,14 @@ namespace SPH
 
 			for (size_t n = 0; n != neighboring_ids.size(); ++n)
 			{
-				Vecd displacement = pos_n_[particle_id] - pos_n_[neighboring_ids[n]];
+				size_t index_j = neighboring_ids[n];
+				ListData list_data_j = std::make_tuple(index_j, pos[index_j], Vol[index_j]);
 				Neighborhood &neighborhood = particle_configuration[particle_id];
-				neighbor_relation_inner(neighborhood, displacement, particle_id, neighboring_ids[n]);
+				neighbor_relation_inner(neighborhood, pos[particle_id], particle_id, list_data_j);
 			}
 		}
-		/** Other branches. 
-		 * They are may normal branch (fully growed, has child and parent) or non-fully growed branch
+		/** Other branches.
+		 * They are may normal branch (fully grown, has child and parent) or non-fully grown branch
 		 */
 		for (size_t branch_idx = 2; branch_idx != branches_.size(); ++branch_idx)
 		{
@@ -115,7 +112,7 @@ namespace SPH
 			size_t parent_branch_id = branches_[branch_idx]->in_edge_;
 			if (!branches_[branch_idx]->is_terminated_)
 			{
-				/** This branch is fully growed. */
+				/** This branch is fully grown. */
 				for (size_t i = 0; i != num_ele; i++)
 				{
 					neighboring_ids.clear();
@@ -172,15 +169,16 @@ namespace SPH
 
 					for (size_t n = 0; n != neighboring_ids.size(); ++n)
 					{
-						Vecd displacement = pos_n_[particle_id] - pos_n_[neighboring_ids[n]];
+						size_t index_j = neighboring_ids[n];
+						ListData list_data_j = std::make_tuple(index_j, pos[index_j], Vol[index_j]);
 						Neighborhood &neighborhood = particle_configuration[particle_id];
-						neighbor_relation_inner(neighborhood, displacement, particle_id, neighboring_ids[n]);
+						neighbor_relation_inner(neighborhood, pos[particle_id], particle_id, list_data_j);
 					}
 				}
 			}
 			else
 			{
-				/** This branch is not fully growed. */
+				/** This branch is not fully grown. */
 				for (size_t i = 0; i != num_ele; i++)
 				{
 					neighboring_ids.clear();
@@ -209,9 +207,10 @@ namespace SPH
 
 					for (size_t n = 0; n != neighboring_ids.size(); ++n)
 					{
-						Vecd displacement = pos_n_[particle_id] - pos_n_[neighboring_ids[n]];
+						size_t index_j = neighboring_ids[n];
+						ListData list_data_j = std::make_tuple(index_j, pos[index_j], Vol[index_j]);
 						Neighborhood &neighborhood = particle_configuration[particle_id];
-						neighbor_relation_inner(neighborhood, displacement, particle_id, neighboring_ids[n]);
+						neighbor_relation_inner(neighborhood, pos[particle_id], particle_id, list_data_j);
 					}
 				}
 			}

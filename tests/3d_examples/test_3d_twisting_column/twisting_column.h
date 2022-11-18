@@ -1,8 +1,8 @@
 /**
-* @file 	twisting_column.h
-* @brief 	This is the case setup for twisting_column.cpp.
-* @author 	Chi Zhang and Xiangyu Hu
-*/
+ * @file 	twisting_column.h
+ * @brief 	This is the case setup for twisting_column.cpp.
+ * @author 	Chi Zhang and Xiangyu Hu
+ */
 #ifndef TEST_3D_TWISTING_COLUMN_CASE_H
 #define TEST_3D_TWISTING_COLUMN_CASE_H
 
@@ -54,24 +54,23 @@ class InitialCondition
 	: public solid_dynamics::ElasticDynamicsInitialCondition
 {
 public:
-	explicit InitialCondition(SolidBody &body)
-		: solid_dynamics::ElasticDynamicsInitialCondition(body){};
+	explicit InitialCondition(SPHBody &sph_body)
+		: solid_dynamics::ElasticDynamicsInitialCondition(sph_body){};
 
-protected:
-	void Update(size_t index_i, Real dt) override
+	void update(size_t index_i, Real dt)
 	{
-		Real x = pos_n_[index_i][0];
-		Real y = pos_n_[index_i][1];
-		Real z = pos_n_[index_i][2];
+		Real x = pos_[index_i][0];
+		Real y = pos_[index_i][1];
+		Real z = pos_[index_i][2];
 		Real angular_velocity = angular_0 * sin((M_PI * x) / (2.0 * PL));
 		Real local_radius = sqrt(pow(y, 2.0) + pow(z, 2.0));
 		Real angular = atan2(y, z);
 
 		if (x > 0.0)
 		{
-			vel_n_[index_i][1] = angular_velocity * local_radius * cos(angular);
-			vel_n_[index_i][2] = -angular_velocity * local_radius * sin(angular);
+			vel_[index_i][1] = angular_velocity * local_radius * cos(angular);
+			vel_[index_i][2] = -angular_velocity * local_radius * sin(angular);
 		}
 	};
 };
-#endif //TEST_3D_TWISTING_COLUMN_CASE_H
+#endif // TEST_3D_TWISTING_COLUMN_CASE_H

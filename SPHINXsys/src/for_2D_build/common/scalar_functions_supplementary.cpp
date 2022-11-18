@@ -1,6 +1,6 @@
 /**
  * @file 	scalar_functions_supplementary.cpp
- * @author	Luhui Han, Chi ZHang and Xiangyu Hu
+ * @author	Luhui Han, Chi Zhang and Xiangyu Hu
  * @version	0.1
  */
 
@@ -8,7 +8,7 @@
 
 namespace SPH {
 	//=================================================================================================//
-	int SecondAxis(int axis_direction) {
-		return axis_direction == 1 ? 0 : 1;
+	int SecondAxis(int first_axis) {
+		return first_axis == 1 ? 0 : 1;
 	}
 }

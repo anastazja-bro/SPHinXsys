@@ -2,7 +2,7 @@
  * @file 	2d_cylinder_flow.h
  * @brief 	This is the case file for the test of flow passing by a cylinder.
  * @details  We consider a flow passing by a cylinder in 2D.
- * @author 	Xiangyu Hu, Chi Zhangand Luhui Han
+ * @author 	Xiangyu Hu, Chi Zhang and Luhui Han
  */
 
 #include "sphinxsys.h"
@@ -72,7 +72,7 @@ class WaterBlock : public ComplexShape
 public:
 	explicit WaterBlock(const std::string &shape_name) : ComplexShape(shape_name)
 	{
-		/** Geomtry definition. */
+		/** Geometry definition. */
 		MultiPolygon multi_polygon;
 		multi_polygon.addAPolygon(createWaterBlockShape(), ShapeBooleanOps::add);
 		multi_polygon.addACircle(insert_circle_center, insert_circle_radius, 100, ShapeBooleanOps::sub);
@@ -105,13 +105,13 @@ public:
 //----------------------------------------------------------------------
 //	Case dependent flow boundary condition.
 //----------------------------------------------------------------------
-class FreeStreamCondition : public fluid_dynamics::FlowRelaxationBuffer
+class FreeStreamCondition : public fluid_dynamics::FlowVelocityBuffer
 {
 	Real u_ave_, u_ref_, t_ref;
 
 public:
-	FreeStreamCondition(FluidBody &fluid_body, BodyPartByCell &constrained_region)
-		: fluid_dynamics::FlowRelaxationBuffer(fluid_body, constrained_region),
+	FreeStreamCondition(BodyPartByCell &constrained_region)
+		: fluid_dynamics::FlowVelocityBuffer(constrained_region),
 		  u_ave_(0), u_ref_(U_f), t_ref(2.0) {}
 	Vecd getTargetVelocity(Vecd &position, Vecd &velocity)
 	{

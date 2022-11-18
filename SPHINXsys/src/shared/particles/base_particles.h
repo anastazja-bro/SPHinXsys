@@ -1,25 +1,25 @@
-/* -------------------------------------------------------------------------*
- *								SPHinXsys									*
- * --------------------------------------------------------------------------*
- * SPHinXsys (pronunciation: s'finksis) is an acronym from Smoothed Particle	*
- * Hydrodynamics for industrial compleX systems. It provides C++ APIs for	*
- * physical accurate simulation and aims to model coupled industrial dynamic *
- * systems including fluid, solid, multi-body dynamics and beyond with SPH	*
- * (smoothed particle hydrodynamics), a meshless computational method using	*
- * particle discretization.													*
- *																			*
- * SPHinXsys is partially funded by German Research Foundation				*
- * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1				*
- * and HU1527/12-1.															*
- *                                                                           *
- * Portions copyright (c) 2017-2020 Technical University of Munich and		*
- * the authors' affiliations.												*
- *                                                                           *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
- * not use this file except in compliance with the License. You may obtain a *
- * copy of the License at http://www.apache.org/licenses/LICENSE-2.0.        *
- *                                                                           *
- * --------------------------------------------------------------------------*/
+/* -----------------------------------------------------------------------------*
+ *                               SPHinXsys                                      *
+ * -----------------------------------------------------------------------------*
+ * SPHinXsys (pronunciation: s'finksis) is an acronym from Smoothed Particle    *
+ * Hydrodynamics for industrial compleX systems. It provides C++ APIs for       *
+ * physical accurate simulation and aims to model coupled industrial dynamic    *
+ * systems including fluid, solid, multi-body dynamics and beyond with SPH      *
+ * (smoothed particle hydrodynamics), a meshless computational method using     *
+ * particle discretization.                                                     *
+ *                                                                              *
+ * SPHinXsys is partially funded by German Research Foundation                  *
+ * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,               *
+ * HU1527/12-1 and HU1527/12-4.                                                 *
+ *                                                                              *
+ * Portions copyright (c) 2017-2022 Technical University of Munich and          *
+ * the authors' affiliations.                                                   *
+ *                                                                              *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may      *
+ * not use this file except in compliance with the License. You may obtain a    *
+ * copy of the License at http://www.apache.org/licenses/LICENSE-2.0.           *
+ *                                                                              *
+ * -----------------------------------------------------------------------------*/
 /**
  * @file 	base_particles.h
  * @brief 	This is the base class of SPH particles. The basic data of the particles
@@ -35,6 +35,7 @@
 #include "sph_data_containers.h"
 #include "base_material.h"
 #include "xml_engine.h"
+#include "particle_sorting.h"
 
 #include <fstream>
 
@@ -46,7 +47,7 @@ namespace SPH
 	class ParticleGenerator;
 	class BodySurface;
 	template <class ReturnType>
-	class ParticleDynamics;
+	class BaseDynamics;
 
 	/**
 	 * @class BaseParticles
@@ -68,7 +69,7 @@ namespace SPH
 	 * The global value of real_particles_bound_ separate the sum of real and buffer particles with ghost particles.
 	 * The global value of total_ghost_particles_ indicates the total number of ghost particles in use.
 	 * It will be initialized to zero before a time step.
-	 * In SPHinXsys, the variables registered in general particle data (ParticleData) belong to a heirachy of two layers.
+	 * In SPHinXsys, the variables registered in general particle data (ParticleData) belong to a hierarchy of two layers.
 	 * The first is for the global basic physical states to describe the physical process.
 	 * These variables are defined within the classes of particles.
 	 * The second is for the local, dynamics-method-related variables, which are defined in specific methods,
@@ -81,27 +82,21 @@ namespace SPH
 	class BaseParticles
 	{
 	private:
-		UniquePtrKeepers<ParticleDynamics<void>> derived_particle_data_;
+		UniquePtrKeepers<BaseDynamics<void>> derived_particle_data_;
 
 	public:
 		explicit BaseParticles(SPHBody &sph_body, BaseMaterial *base_material);
 		virtual ~BaseParticles(){};
 
-		StdLargeVec<Vecd> pos_n_;		  /**< current position */
-		StdLargeVec<Vecd> vel_n_;		  /**< current particle velocity */
-		StdLargeVec<Vecd> dvel_dt_;		  /**< total acceleration including inner pressure- or stress-induced acceleration and other accelerations */
-		StdLargeVec<Vecd> dvel_dt_prior_; /**< other, such as gravity and viscous, accelerations */
+		StdLargeVec<Vecd> pos_;		  /**< particle position */
+		StdLargeVec<Vecd> vel_;		  /**< particle velocity */
+		StdLargeVec<Vecd> acc_;		  /**< total acceleration including inner pressure- or stress-induced acceleration and other accelerations */
+		StdLargeVec<Vecd> acc_prior_; /**< other, such as gravity and viscous, accelerations */
 
-		StdLargeVec<Real> Vol_;	  /**< particle volume */
-		StdLargeVec<Real> rho_n_; /**< current particle density */
-		StdLargeVec<Real> mass_;  /**< particle mass */
-		//----------------------------------------------------------------------
-		// Global information for all particles
-		//----------------------------------------------------------------------
-		Real rho0_;				/**< reference density*/
-		Real sigma0_;			/**< reference number density. */
-		Real speed_max_;		/**< Maximum particle speed. */
-		Real signal_speed_max_; /**< Maximum signal speed.*/
+		StdLargeVec<Real> Vol_;	 /**< particle volumetric measure, also referred to area of surface particle and length of linear particle */
+		StdLargeVec<Real> rho_;	 /**< particle density */
+		StdLargeVec<Real> mass_; /**< particle massive measure, also referred to mass per-unit thickness of surface particle and mass per-unit cross-section area of linear particle */
+		BaseMaterial &base_material_;
 		//----------------------------------------------------------------------
 		// Global information for defining particle groups
 		//----------------------------------------------------------------------
@@ -113,30 +108,30 @@ namespace SPH
 		//----------------------------------------------------------------------
 		ParticleData all_particle_data_;
 		ParticleDataMap all_variable_maps_;
-		StdVec<ParticleDynamics<void> *> derived_variables_;
+		StdVec<BaseDynamics<void> *> derived_variables_;
 		ParticleVariableList variables_to_write_;
 
 		/** register a variable defined in a class (can be non-particle class) */
 		template <typename VariableType>
-		void registerAVariable(StdLargeVec<VariableType> &variable_addrs,
-							   const std::string &variable_name, VariableType initial_value = VariableType(0));
+		void registerVariable(StdLargeVec<VariableType> &variable_addrs,
+							  const std::string &variable_name, VariableType initial_value = VariableType(0));
 
-		/** register a variable and copying data from an exist variable */
-		template <typename VariableType>
-		void registerAVariable(StdLargeVec<VariableType> &variable_addrs,
-							   const std::string &new_variable_name, const std::string &old_variable_name);
+		/** register a variable from a initialization function */
+		template <typename VariableType, class InitializationFunction>
+		void registerVariable(StdLargeVec<VariableType> &variable_addrs, const std::string &variable_name,
+							  const InitializationFunction &initialization);
 
 		/** get a registered variable from particles by its name. return by pointer so that return nullptr if fail. */
 		template <typename VariableType>
 		StdLargeVec<VariableType> *getVariableByName(const std::string &variable_name);
 
-		/** add a variable into a particle vairable name list */
+		/** add a variable into a particle variable name list */
 		template <typename VariableType>
-		void addAVariableNameToList(ParticleVariableList &variable_name_list, const std::string &variable_name);
+		void addVariableNameToList(ParticleVariableList &variable_name_list, const std::string &variable_name);
 
 		/** add a variable into the list for state output */
 		template <typename VariableType>
-		void addAVariableToWrite(const std::string &variable_name);
+		void addVariableToWrite(const std::string &variable_name);
 
 		/** add a derived variable into the list for state output */
 		template <class DerivedVariableMethod>
@@ -144,26 +139,31 @@ namespace SPH
 
 		/** add a variable into the list for restart */
 		template <typename VariableType>
-		void addAVariableToRestart(const std::string &variable_name);
+		void addVariableToRestart(const std::string &variable_name);
 
 		/** add a variable into the list for particle reload */
 		template <typename VariableType>
-		void addAVariableToReload(const std::string &variable_name);
+		void addVariableToReload(const std::string &variable_name);
 
 		//----------------------------------------------------------------------
 		//		Particle data for sorting
 		//----------------------------------------------------------------------
 		StdLargeVec<size_t> unsorted_id_; /**< the ids assigned just after particle generated. */
-		StdLargeVec<size_t> sorted_id_;	/**< the sorted particle ids of particles from unsorted ids. */
-		StdLargeVec<size_t> sequence_;	/**< the sequence referred for sorting. */
+		StdLargeVec<size_t> sorted_id_;	  /**< the sorted particle ids of particles from unsorted ids. */
+		StdLargeVec<size_t> sequence_;	  /**< the sequence referred for sorting. */
 		ParticleData sortable_data_;
 		ParticleDataMap sortable_variable_maps_;
+		ParticleSorting particle_sorting_;
 
 		/** register an already defined variable as sortable */
 		template <typename VariableType>
-		void registerASortableVariable(const std::string &variable_name);
+		void registerSortableVariable(const std::string &variable_name);
 
-		SPHBody *getSPHBody() { return sph_body_; };
+		/** sort particles */
+		template <typename SequenceMethod>
+		void sortParticles(SequenceMethod &sequence_method);
+
+		SPHBody &getSPHBody() { return sph_body_; };
 		/** initialize other variables  based one geometric variables and material */
 		virtual void initializeOtherVariables();
 		void addBufferParticles(size_t buffer_size);
@@ -189,17 +189,18 @@ namespace SPH
 
 		virtual BaseParticles *ThisObjectPtr() { return this; };
 
-		/** Normalize the kernel gradient. */
-		virtual Vecd normalizeKernelGradient(size_t particle_index_i, Vecd &kernel_gradient) { return kernel_gradient; };
 		/** Get the kernel gradient in weak form. */
-		virtual Vecd getKernelGradient(size_t particle_index_i, size_t particle_index_j,
-									   Real dW_ij, Vecd &e_ij)
+		virtual Vecd getKernelGradient(size_t index_i, size_t index_j, Real dW_ijV_j, Vecd &e_ij)
 		{
-			return dW_ij * e_ij;
+			return dW_ijV_j * e_ij;
 		};
 
+		virtual Vecd ParticleTotalAcceleration(size_t index_i) { return acc_[index_i] + acc_prior_[index_i]; }
+		virtual Real ParticleVolume(size_t index_i) { return Vol_[index_i]; }
+		virtual Real ParticleMass(size_t index_i) { return mass_[index_i]; }
+
 	protected:
-		SPHBody *sph_body_; /**< The body in which the particles belongs to. */
+		SPHBody &sph_body_; /**< The body in which the particles belongs to. */
 		std::string body_name_;
 		XmlEngine restart_xml_engine_;
 		XmlEngine reload_xml_engine_;
@@ -231,9 +232,9 @@ namespace SPH
 			void operator()(ParticleData &particle_data, size_t this_index, size_t another_index) const;
 		};
 
-		ParticleDataOperation<resizeParticleData> resize_particle_data_;
-		ParticleDataOperation<addAParticleDataValue> add_a_particle_value_;
-		ParticleDataOperation<copyAParticleDataValue> copy_a_particle_value_;
+		DataAssembleOperation<resizeParticleData> resize_particle_data_;
+		DataAssembleOperation<addAParticleDataValue> add_a_particle_value_;
+		DataAssembleOperation<copyAParticleDataValue> copy_a_particle_value_;
 	};
 
 	struct WriteAParticleVariableToXml
@@ -269,7 +270,7 @@ namespace SPH
 		using DerivedVariableType = VariableType;
 		std::string variable_name_;
 
-		BaseDerivedVariable(const SPHBody &sph_body, const std::string &variable_name);
+		BaseDerivedVariable(SPHBody &sph_body, const std::string &variable_name);
 		virtual ~BaseDerivedVariable(){};
 
 	protected:

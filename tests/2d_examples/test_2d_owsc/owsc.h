@@ -51,7 +51,7 @@ Vec2d Base_lt(Flap_x - 0.5 * Flap_width, Base_bottom_position + Base_height); //
 Vec2d Base_rt(Flap_x + 0.5 * Flap_width, Base_bottom_position + Base_height); // right top
 Vec2d Base_rb(Flap_x + 0.5 * Flap_width, Base_bottom_position);				  // right bottom
 
-// flap geometeric parameters
+// flap geometric parameters
 Vec2d Flap_lb(Flap_x - 0.5 * Flap_width, Base_bottom_position + Base_height + 0.5 * Flap_width);		  // left bottom
 Vec2d Flap_lt(Flap_x - 0.5 * Flap_width, Base_bottom_position + Base_height + 0.5 * Flap_width + Flap_H); // left top
 Vec2d Flap_rt(Flap_x + 0.5 * Flap_width, Base_bottom_position + Base_height + 0.5 * Flap_width + Flap_H); // right top
@@ -68,10 +68,8 @@ Real mu_f = 1.0e-6;
 
 // for material properties of the solid
 Real flap_mass = 33.04;
-Real flap_vol = 0.0579;
-Real rho0_s = flap_mass / flap_vol;
-Real poisson = 0.33;
-Real Youngs_modulus = 7.8e6;
+Real flap_volume = 0.0579;
+Real rho0_s = flap_mass / flap_volume;
 
 //------------------------------------------------------------------------------
 // geometric shape elements used in the case
@@ -245,8 +243,8 @@ MultiPolygon createFlapSimbodyConstrainShape()
 class FlapSystemForSimbody : public SolidBodyPartForSimbody
 {
 public:
-	FlapSystemForSimbody(SolidBody &solid_body, SharedPtr<Shape> shape_ptr)
-		: SolidBodyPartForSimbody(solid_body, shape_ptr)
+	FlapSystemForSimbody(SPHBody &sph_body, SharedPtr<Shape> shape_ptr)
+		: SolidBodyPartForSimbody(sph_body, shape_ptr)
 	{
 		// Vecd mass_center = Vecd(7.92, 0.355); // 0.3355
 		// initial_mass_center_ = SimTK::Vec3(mass_center[0], mass_center[1], 0.0);
@@ -260,7 +258,7 @@ public:
 	}
 };
 
-class WaveMaking : public solid_dynamics::ConstrainSolidBodyRegion
+class WaveMaking : public solid_dynamics::BaseMotionConstraint
 {
 	Real model_scale_;
 	Real gravity_;
@@ -269,33 +267,26 @@ class WaveMaking : public solid_dynamics::ConstrainSolidBodyRegion
 	Real wave_period_;
 	Real wave_freq_;
 	Real wave_stroke_;
-	Real time_;
 
-	virtual Vecd getDisplacement(Vecd &pos_0, Vecd &pos_n) override
+	Vecd getDisplacement(const Real &time)
 	{
 		Vecd displacement(0);
-		displacement[0] = 0.5 * wave_stroke_ * sin(wave_freq_ * time_);
-		return pos_0 + displacement;
+		displacement[0] = 0.5 * wave_stroke_ * sin(wave_freq_ * time);
+		return displacement;
 	}
 
-	virtual Vec2d getVelocity(Vecd &pos_0, Vecd &pos_n, Vec2d &vel_n) override
+	Vec2d getVelocity(const Real &time)
 	{
 		Vec2d velocity(0);
-		velocity[0] = 0.5 * wave_stroke_ * wave_freq_ * cos(wave_freq_ * time_);
+		velocity[0] = 0.5 * wave_stroke_ * wave_freq_ * cos(wave_freq_ * time);
 		return velocity;
 	}
 
-	virtual Vec2d getAcceleration(Vecd &pos_0, Vecd &pos_n, Vec2d &dvel_dt) override
+	Vec2d getAcceleration(const Real &time)
 	{
 		Vec2d acceleration(0);
-		acceleration[0] = -0.5 * wave_stroke_ * wave_freq_ * wave_freq_ * sin(wave_freq_ * time_);
+		acceleration[0] = -0.5 * wave_stroke_ * wave_freq_ * wave_freq_ * sin(wave_freq_ * time);
 		return acceleration;
-	}
-
-	virtual void setupDynamics(Real dt = 0.0) override
-	{
-		body_->setNewlyUpdated();
-		time_ = GlobalStaticVariables::physical_time_;
 	}
 
 	void computeWaveStrokeAndFrequency()
@@ -333,12 +324,21 @@ class WaveMaking : public solid_dynamics::ConstrainSolidBodyRegion
 	}
 
 public:
-	WaveMaking(SolidBody &solid_body, BodyPartByParticle &constrained_region)
-		: ConstrainSolidBodyRegion(solid_body, constrained_region), time_(0.0),
-		  model_scale_(25.0), wave_height_(5.0), wave_period_(10.0), gravity_(gravity_g), water_depth_(Water_H)
+	WaveMaking(BodyPartByParticle &body_part)
+		: solid_dynamics::BaseMotionConstraint(body_part),
+		  model_scale_(25.0), wave_height_(5.0),
+		  wave_period_(10.0), gravity_(gravity_g), water_depth_(Water_H)
 	{
 		computeWaveStrokeAndFrequency();
 	}
+
+	void update(size_t index_i, Real dt = 0.0)
+	{
+		Real time = GlobalStaticVariables::physical_time_;
+		pos_[index_i] = pos0_[index_i] + getDisplacement(time);
+		vel_[index_i] = getVelocity(time);
+		acc_[index_i] = getAcceleration(time);
+	};
 };
 
 Real h = 1.3 * particle_spacing_ref;

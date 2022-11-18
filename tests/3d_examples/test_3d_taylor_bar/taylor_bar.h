@@ -62,13 +62,12 @@ class InitialCondition
 	: public solid_dynamics::ElasticDynamicsInitialCondition
 {
 public:
-	explicit InitialCondition(SolidBody &body)
-		: solid_dynamics::ElasticDynamicsInitialCondition(body){};
+	explicit InitialCondition(SPHBody &sph_body)
+		: solid_dynamics::ElasticDynamicsInitialCondition(sph_body){};
 
-protected:
-	void Update(size_t index_i, Real dt) override
+	void update(size_t index_i, Real dt)
 	{
-		vel_n_[index_i][2] = -227.0;
+		vel_[index_i][2] = -227.0;
 	}
 };
 

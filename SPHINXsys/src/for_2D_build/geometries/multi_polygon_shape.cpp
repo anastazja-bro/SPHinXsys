@@ -1,6 +1,6 @@
 /**
  * @file 	multi_polygon_shape.cpp
- * @author	Luhui Han, Chi ZHang and Xiangyu Hu
+ * @author	Luhui Han, Chi Zhang and Xiangyu Hu
  */
 
 #include "multi_polygon_shape.h"
@@ -57,7 +57,7 @@ namespace SPH
 		default:
 		{
 			std::cout << "\n FAILURE: the type of boolean operation is undefined!" << std::endl;
-			std::cout << "\n Please check the boost libraray reference." << std::endl;
+			std::cout << "\n Please check the boost library reference." << std::endl;
 			std::cout << __FILE__ << ':' << __LINE__ << std::endl;
 			throw;
 		}
@@ -112,8 +112,8 @@ namespace SPH
 
 		if (!is_valid(multi_poly_circle))
 		{
-			std::cout << "\n Error: the multi ploygen is not valid." << std::endl;
-			std::cout << "\n The points must be in clockwise. Please check the boost libraray reference." << std::endl;
+			std::cout << "\n Error: the multi polygon is not valid." << std::endl;
+			std::cout << "\n The points must be in clockwise. Please check the boost library reference." << std::endl;
 			std::cout << __FILE__ << ':' << __LINE__ << std::endl;
 			throw;
 		}
@@ -139,16 +139,16 @@ namespace SPH
 			append(poly, pts_reverse);
 			if (!is_valid(poly))
 			{
-				std::cout << "\n Error: the multi ploygen is still not valid. Please check the boost libraray reference." << std::endl;
+				std::cout << "\n Error: the multi polygon is still not valid. Please check the boost library reference." << std::endl;
 				std::cout << __FILE__ << ':' << __LINE__ << std::endl;
 				throw;
 			}
 		}
 
-		boost_multi_poly multi_poly_polygen;
-		convert(poly, multi_poly_polygen);
+		boost_multi_poly multi_poly_polygon;
+		convert(poly, multi_poly_polygon);
 
-		multi_poly_ = MultiPolygonByBooleanOps(multi_poly_, multi_poly_polygen, op);
+		multi_poly_ = MultiPolygonByBooleanOps(multi_poly_, multi_poly_polygon, op);
 	}
 	//=================================================================================================//
 	void MultiPolygon::
@@ -177,19 +177,19 @@ namespace SPH
 		addAPolygon(coordinates, op);
 	}
 	//=================================================================================================//
-	bool MultiPolygon::checkContain(const Vec2d &pnt, bool BOUNDARY_INCLUDED /*= true*/)
+	bool MultiPolygon::checkContain(const Vec2d &probe_point, bool BOUNDARY_INCLUDED /*= true*/)
 	{
 		if (BOUNDARY_INCLUDED)
 		{
-			return covered_by(model::d2::point_xy<Real>(pnt[0], pnt[1]), multi_poly_);
+			return covered_by(model::d2::point_xy<Real>(probe_point[0], probe_point[1]), multi_poly_);
 		}
 		else
 		{
-			return within(model::d2::point_xy<Real>(pnt[0], pnt[1]), multi_poly_);
+			return within(model::d2::point_xy<Real>(probe_point[0], probe_point[1]), multi_poly_);
 		}
 	}
 	//=================================================================================================//
-	Vec2d MultiPolygon::findClosestPoint(const Vec2d &input_pnt)
+	Vec2d MultiPolygon::findClosestPoint(const Vec2d &probe_point)
 	{
 		typedef model::d2::point_xy<Real> pnt_type;
 		typedef model::referring_segment<model::d2::point_xy<Real>> seg_type;
@@ -198,10 +198,10 @@ namespace SPH
 		From the documentation on segment and referring_segment, the only difference between the two is that
 		referring_segment holds a reference to the points.
 		This is what is needed in a for each that modifies the segment since the points modified should be
-		reflected in the linestring. In a for each that does not modify the points, it should still take a
+		reflected in the line string. In a for each that does not modify the points, it should still take a
 		reference (most likely a const reference) since it reduces the amount of copying.
 		*/
-		pnt_type input_p(input_pnt[0], input_pnt[1]);
+		pnt_type input_p(probe_point[0], probe_point[1]);
 		model::segment<model::d2::point_xy<Real>> closest_seg;
 		Real closest_dist_2seg = boost::numeric::bounds<Real>::highest();
 		std::function<void(seg_type)> findclosestsegment = [&closest_seg, &closest_dist_2seg, &input_p](seg_type seg)
@@ -232,7 +232,7 @@ namespace SPH
 		Vec2d p_0(x0, y0);
 		Vec2d p_1(x1, y1);
 		Vec2d vec_v = p_1 - p_0;
-		Vec2d vec_w = input_pnt - p_0;
+		Vec2d vec_w = probe_point - p_0;
 
 		Real c1 = dot(vec_v, vec_w);
 		if (c1 <= 0)
@@ -271,14 +271,14 @@ namespace SPH
 		return multi_polygon_.getBoostMultiPoly().size() == 0 ? false : true;
 	}
 	//=================================================================================================//
-	bool MultiPolygonShape::checkContain(const Vec2d &input_pnt, bool BOUNDARY_INCLUDED)
+	bool MultiPolygonShape::checkContain(const Vec2d &probe_point, bool BOUNDARY_INCLUDED)
 	{
-		return multi_polygon_.checkContain(input_pnt, BOUNDARY_INCLUDED);
+		return multi_polygon_.checkContain(probe_point, BOUNDARY_INCLUDED);
 	}
 	//=================================================================================================//
-	Vec2d MultiPolygonShape::findClosestPoint(const Vec2d &input_pnt)
+	Vec2d MultiPolygonShape::findClosestPoint(const Vec2d &probe_point)
 	{
-		return multi_polygon_.findClosestPoint(input_pnt);
+		return multi_polygon_.findClosestPoint(probe_point);
 	}
 	//=================================================================================================//
 	BoundingBox MultiPolygonShape::findBounds()

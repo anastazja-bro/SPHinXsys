@@ -22,7 +22,7 @@
 * --------------------------------------------------------------------------*/
 /**
  * @file 	active_muscle_dynamics.h
- * @brief 	In is file, we declear muscle dynamics which is driven by an external injection of energy. 
+ * @brief 	In is file, we declare muscle dynamics which is driven by an external injection of energy. 
  * @author 	Chi Zhang and Xiangyu Hu
  * @version 0.3.1
  *			Here, we need identify the physical differences between electrophysiology and active muscle.
@@ -48,7 +48,7 @@ namespace SPH
 {
     namespace active_muscle_dynamics
 	{
-        typedef DataDelegateSimple<SolidBody, ElasticSolidParticles, ElasticSolid> ElasticSolidDataSimple;
+        typedef DataDelegateSimple<ElasticSolidParticles> ElasticSolidDataSimple;
  
 		/**
 		 * @class MuscleActivation
@@ -56,33 +56,14 @@ namespace SPH
 		 * This is a abstract class to be override for case specific activation
 		 */
 		class MuscleActivation :
-			public ParticleDynamicsSimple, public ElasticSolidDataSimple
+			public LocalDynamics, public ElasticSolidDataSimple
 		{
 		public:
-			explicit MuscleActivation(SolidBody &solid_body);
+			explicit MuscleActivation(SPHBody &sph_body);
 			virtual ~MuscleActivation() {};
 		protected:
-			StdLargeVec<Vecd>& pos_0_;
+			StdLargeVec<Vecd>& pos0_;
 			StdLargeVec<Real>& active_contraction_stress_;
-		};
-
-		/**@class SpringConstrainMuscleRegion
-		 * @brief Constrain a solid body part with a spring force 
-		 * towards each constrained particles' original position.
-		 */
-		class SpringConstrainMuscleRegion : 
-			public PartSimpleDynamicsByParticle, public ElasticSolidDataSimple
-		{
-		public:
-			SpringConstrainMuscleRegion(SolidBody &solid_body, BodyPartByParticle &body_part);
-			virtual ~SpringConstrainMuscleRegion() {};
-			void setUpSpringStiffness(Vecd stiffness){stiffness_ = stiffness;}
-		protected:
-			StdLargeVec<Real>& mass_;
-			StdLargeVec<Vecd>& pos_n_, & pos_0_, & vel_n_;
-			Vecd stiffness_;
-			virtual Vecd getAcceleration(Vecd& disp, Real mass);
-			virtual void Update(size_t index_i, Real dt = 0.0) override;
 		};
     }
 }

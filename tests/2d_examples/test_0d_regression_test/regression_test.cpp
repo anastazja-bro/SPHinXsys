@@ -1,13 +1,13 @@
 /**
  * @file 	regression_test.cpp
- * @brief 	This is a test case based on diffusion, which can be used to 
-            validate the generation of the converged database in a regression test. 
-            It can be run successfully (using CMake's CTest) in Linux system installed with Python 3.
+ * @brief 	This is a test case based on diffusion, which can be used to
+			validate the generation of the converged database in a regression test.
+			It can be run successfully (using CMake's CTest) in Linux system installed with Python 3.
  * @author 	Bo Zhang and Xiangyu Hu
  */
 
 #include "sphinxsys.h" //SPHinXsys Library
-using namespace SPH;   //namespace cite here
+using namespace SPH;   // namespace cite here
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
@@ -23,75 +23,75 @@ Real diffusion_coff = 1.0e-3;
 Real bias_coff = 0.0;
 Real alpha = Pi / 4.0;
 Vec2d bias_direction(cos(alpha), sin(alpha));
-Real initialtemperature = 0.0;
-Real hightemperature = 1.0;
-Real lowtemperature = 0.0;
+Real initial_temperature = 0.0;
+Real high_temperature = 1.0;
+Real low_temperature = 0.0;
 //----------------------------------------------------------------------
 //	Cases-dependent 2D geometries
 //----------------------------------------------------------------------
 MultiPolygon createDiffusionDomain()
 {
-	//thermal solid domain geometry.
-	std::vector<Vecd> diffusiondomain;
-	diffusiondomain.push_back(Vecd(-BW, -BW));
-	diffusiondomain.push_back(Vecd(-BW, H + BW));
-	diffusiondomain.push_back(Vecd(L + BW, H + BW));
-	diffusiondomain.push_back(Vecd(L + BW, -BW));
-	diffusiondomain.push_back(Vecd(-BW, -BW));
+	// thermal solid domain geometry.
+	std::vector<Vecd> diffusion_domain;
+	diffusion_domain.push_back(Vecd(-BW, -BW));
+	diffusion_domain.push_back(Vecd(-BW, H + BW));
+	diffusion_domain.push_back(Vecd(L + BW, H + BW));
+	diffusion_domain.push_back(Vecd(L + BW, -BW));
+	diffusion_domain.push_back(Vecd(-BW, -BW));
 
 	MultiPolygon multi_polygon;
-	multi_polygon.addAPolygon(diffusiondomain, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(diffusion_domain, ShapeBooleanOps::add);
 	return multi_polygon;
 }
 
 MultiPolygon createInnerDomain()
 {
-	//thermal solid inner domain geometry.
-	std::vector<Vecd> innerdomain;
-	innerdomain.push_back(Vecd(0.0, 0.0));
-	innerdomain.push_back(Vecd(0.0, H));
-	innerdomain.push_back(Vecd(L, H));
-	innerdomain.push_back(Vecd(L, 0.0));
-	innerdomain.push_back(Vecd(0.0, 0.0));
+	// thermal solid inner domain geometry.
+	std::vector<Vecd> inner_domain;
+	inner_domain.push_back(Vecd(0.0, 0.0));
+	inner_domain.push_back(Vecd(0.0, H));
+	inner_domain.push_back(Vecd(L, H));
+	inner_domain.push_back(Vecd(L, 0.0));
+	inner_domain.push_back(Vecd(0.0, 0.0));
 
 	MultiPolygon multi_polygon;
-	multi_polygon.addAPolygon(innerdomain, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(inner_domain, ShapeBooleanOps::add);
 
 	return multi_polygon;
 }
 
 MultiPolygon createLeftSideBoundary()
 {
-	//left isothermal boundary geometry.
-	std::vector<Vecd> leftsideboundary;
-	leftsideboundary.push_back(Vecd(-BW, -BW));
-	leftsideboundary.push_back(Vecd(-BW, H + BW));
-	leftsideboundary.push_back(Vecd(0.0, H));
-	leftsideboundary.push_back(Vecd(0.0, 0.0));
-	leftsideboundary.push_back(Vecd(-BW, -BW));
+	// left isothermal boundary geometry.
+	std::vector<Vecd> left_boundary;
+	left_boundary.push_back(Vecd(-BW, -BW));
+	left_boundary.push_back(Vecd(-BW, H + BW));
+	left_boundary.push_back(Vecd(0.0, H));
+	left_boundary.push_back(Vecd(0.0, 0.0));
+	left_boundary.push_back(Vecd(-BW, -BW));
 
 	MultiPolygon multi_polygon;
-	multi_polygon.addAPolygon(leftsideboundary, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(left_boundary, ShapeBooleanOps::add);
 
 	return multi_polygon;
 }
 
 MultiPolygon createOtherSideBoundary()
 {
-	//other side isothermal boundary geometry.
-	std::vector<Vecd> othersideboundary;
-	othersideboundary.push_back(Vecd(-BW, -BW));
-	othersideboundary.push_back(Vecd(0.0, 0.0));
-	othersideboundary.push_back(Vecd(L, 0.0));
-	othersideboundary.push_back(Vecd(L, H));
-	othersideboundary.push_back(Vecd(0.0, L));
-	othersideboundary.push_back(Vecd(-BW, H + BW));
-	othersideboundary.push_back(Vecd(L + BW, H + BW));
-	othersideboundary.push_back(Vecd(L + BW, -BW));
-	othersideboundary.push_back(Vecd(-BW, -BW));
+	// other side isothermal boundary geometry.
+	std::vector<Vecd> other_boundaries;
+	other_boundaries.push_back(Vecd(-BW, -BW));
+	other_boundaries.push_back(Vecd(0.0, 0.0));
+	other_boundaries.push_back(Vecd(L, 0.0));
+	other_boundaries.push_back(Vecd(L, H));
+	other_boundaries.push_back(Vecd(0.0, L));
+	other_boundaries.push_back(Vecd(-BW, H + BW));
+	other_boundaries.push_back(Vecd(L + BW, H + BW));
+	other_boundaries.push_back(Vecd(L + BW, -BW));
+	other_boundaries.push_back(Vecd(-BW, -BW));
 
 	MultiPolygon multi_polygon;
-	multi_polygon.addAPolygon(othersideboundary, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(other_boundaries, ShapeBooleanOps::add);
 
 	return multi_polygon;
 }
@@ -107,66 +107,46 @@ public:
 	};
 };
 //----------------------------------------------------------------------
+//	Set left side boundary condition.
+//----------------------------------------------------------------------
+class ConstantTemperatureConstraint
+	: public DiffusionReactionSpeciesConstraint<SolidParticles, Solid>
+{
+public:
+	ConstantTemperatureConstraint(BodyPartByParticle &body_part, const std::string &species_name, Real constrained_value)
+		: DiffusionReactionSpeciesConstraint<SolidParticles, Solid>(body_part, species_name),
+		  constrained_value_(constrained_value){};
+
+	void update(size_t index_i, Real dt = 0.0)
+	{
+		species_[index_i] = constrained_value_;
+	};
+
+protected:
+	Real constrained_value_;
+};
+//----------------------------------------------------------------------
 //	Case-dependent initial condition.
 //----------------------------------------------------------------------
 class DiffusionInitialCondition
-	: public DiffusionReactionInitialCondition<SolidBody, SolidParticles, Solid>
+	: public DiffusionReactionInitialCondition<SolidParticles, Solid>
 {
 protected:
 	size_t phi_;
-	void Update(size_t index_i, Real dt) override
+
+public:
+	explicit DiffusionInitialCondition(SPHBody &sph_body)
+		: DiffusionReactionInitialCondition<SolidParticles, Solid>(sph_body)
 	{
-		if (pos_n_[index_i][0] >= 0 && pos_n_[index_i][0] <= L && pos_n_[index_i][1] >= 0 && pos_n_[index_i][1] <= H)
+		phi_ = particles_->diffusion_reaction_material_.SpeciesIndexMap()["Phi"];
+	};
+
+	void update(size_t index_i, Real dt)
+	{
+		if (pos_[index_i][0] >= 0 && pos_[index_i][0] <= L && pos_[index_i][1] >= 0 && pos_[index_i][1] <= H)
 		{
-			species_n_[phi_][index_i] = initialtemperature;
+			species_n_[phi_][index_i] = initial_temperature;
 		}
-	};
-
-public:
-	explicit DiffusionInitialCondition(SolidBody &diffusion_body)
-		: DiffusionReactionInitialCondition<SolidBody, SolidParticles, Solid>(diffusion_body)
-	{
-		phi_ = material_->SpeciesIndexMap()["Phi"];
-	};
-};
-//----------------------------------------------------------------------
-//	Set left side boundary condition.
-//----------------------------------------------------------------------
-class LeftSideBoundaryCondition
-	: public ConstrainDiffusionBodyRegion<SolidBody, SolidParticles, BodyPartByParticle, Solid>
-{
-protected:
-	size_t phi_;
-	void Update(size_t index_i, Real dt) override
-	{
-		species_n_[phi_][index_i] = hightemperature;
-	};
-
-public:
-	LeftSideBoundaryCondition(SolidBody &diffusion_body, BodyPartByParticle &body_part)
-		: ConstrainDiffusionBodyRegion<SolidBody, SolidParticles, BodyPartByParticle, Solid>(diffusion_body, body_part)
-	{
-		phi_ = material_->SpeciesIndexMap()["Phi"];
-	};
-};
-//----------------------------------------------------------------------
-//	Set other side boundary condition.
-//----------------------------------------------------------------------
-class OtherSideBoundaryCondition
-	: public ConstrainDiffusionBodyRegion<SolidBody, SolidParticles, BodyPartByParticle, Solid>
-{
-protected:
-	size_t phi_;
-	void Update(size_t index_i, Real dt) override
-	{
-		species_n_[phi_][index_i] = lowtemperature;
-	};
-
-public:
-	OtherSideBoundaryCondition(SolidBody &diffusion_body, BodyPartByParticle &body_part)
-		: ConstrainDiffusionBodyRegion<SolidBody, SolidParticles, BodyPartByParticle, Solid>(diffusion_body, body_part)
-	{
-		phi_ = material_->SpeciesIndexMap()["Phi"];
 	};
 };
 //----------------------------------------------------------------------
@@ -174,10 +154,10 @@ public:
 //----------------------------------------------------------------------
 class DiffusionBodyRelaxation
 	: public RelaxationOfAllDiffusionSpeciesRK2<
-		  RelaxationOfAllDiffussionSpeciesInner<SolidBody, SolidParticles, Solid>>
+		  RelaxationOfAllDiffusionSpeciesInner<SolidParticles, Solid>>
 {
 public:
-	explicit DiffusionBodyRelaxation(BodyRelationInner &body_inner_relation)
+	explicit DiffusionBodyRelaxation(InnerRelation &body_inner_relation)
 		: RelaxationOfAllDiffusionSpeciesRK2(body_inner_relation){};
 	virtual ~DiffusionBodyRelaxation(){};
 };
@@ -187,7 +167,8 @@ public:
 class TemperatureObserverParticleGenerator : public ObserverParticleGenerator
 {
 public:
-	explicit TemperatureObserverParticleGenerator(SPHBody &sph_body) : ObserverParticleGenerator(sph_body)
+	explicit TemperatureObserverParticleGenerator(SPHBody &sph_body)
+		: ObserverParticleGenerator(sph_body)
 	{
 		/** A line of measuring points at the middle line. */
 		size_t number_of_observation_points = 11;
@@ -210,13 +191,12 @@ int main()
 	//	Build up the environment of a SPHSystem with global controls.
 	//----------------------------------------------------------------------
 	SPHSystem sph_system(system_domain_bounds, resolution_ref);
-	/** output environment. */
-	InOutput in_output(sph_system);
+	IOEnvironment io_environment(sph_system);
 	//----------------------------------------------------------------------
 	//	Create body, materials and particles.
 	//----------------------------------------------------------------------
 	SolidBody diffusion_body(sph_system, makeShared<MultiPolygonShape>(createDiffusionDomain(), "DiffusionBody"));
-	diffusion_body.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles>, DiffusionMaterial>();
+	diffusion_body.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles, Solid>, DiffusionMaterial>();
 	diffusion_body.generateParticles<ParticleGeneratorLattice>();
 	//----------------------------------------------------------------------
 	//	Observer body
@@ -228,36 +208,31 @@ int main()
 	//	The contact map gives the topological connections between the bodies.
 	//	Basically the the range of bodies to build neighbor particle lists.
 	//----------------------------------------------------------------------
-	BodyRelationInner diffusion_body_inner_relation(diffusion_body);
-	BodyRelationContact temperature_observer_contact(temperature_observer, {&diffusion_body});
+	InnerRelation diffusion_body_inner_relation(diffusion_body);
+	ContactRelation temperature_observer_contact(temperature_observer, {&diffusion_body});
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
 	//----------------------------------------------------------------------
-	DiffusionInitialCondition setup_diffusion_initial_condition(diffusion_body);
-	/** Left wall boundary conditions */
-	BodyRegionByParticle left_boundary(diffusion_body, makeShared<MultiPolygonShape>(createLeftSideBoundary()));
-	LeftSideBoundaryCondition left_boundary_condition(diffusion_body, left_boundary);
-	/** Other wall boundary conditions */
-	BodyRegionByParticle other_boundary(diffusion_body,	makeShared<MultiPolygonShape>(createOtherSideBoundary()));
-	OtherSideBoundaryCondition other_boundary_condition(diffusion_body, other_boundary);
-	/** Corrected configuration for diffusion body. */
-	solid_dynamics::CorrectConfiguration correct_configuration(diffusion_body_inner_relation);
-	/** Time step size calculation. */
-	GetDiffusionTimeStepSize<SolidBody, SolidParticles, Solid> get_time_step_size(diffusion_body);
-	/** Diffusion process for diffusion body. */
 	DiffusionBodyRelaxation diffusion_relaxation(diffusion_body_inner_relation);
+	SimpleDynamics<DiffusionInitialCondition> setup_diffusion_initial_condition(diffusion_body);
+	InteractionDynamics<solid_dynamics::CorrectConfiguration> correct_configuration(diffusion_body_inner_relation);
+	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
+	BodyRegionByParticle left_boundary(diffusion_body, makeShared<MultiPolygonShape>(createLeftSideBoundary()));
+	SimpleDynamics<ConstantTemperatureConstraint, BodyRegionByParticle> left_boundary_condition(left_boundary, "Phi", high_temperature);
+	BodyRegionByParticle other_boundary(diffusion_body, makeShared<MultiPolygonShape>(createOtherSideBoundary()));
+	SimpleDynamics<ConstantTemperatureConstraint, BodyRegionByParticle> other_boundary_condition(other_boundary, "Phi", low_temperature);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations, observations of the simulation.
 	//	Regression tests are also defined here.
 	//----------------------------------------------------------------------
-	BodyStatesRecordingToVtp write_states(in_output, sph_system.real_bodies_);
+	BodyStatesRecordingToVtp write_states(io_environment, sph_system.real_bodies_);
 	RegressionTestEnsembleAveraged<ObservedQuantityRecording<Real>>
-		write_solid_temperature("Phi", in_output, temperature_observer_contact);
-	BodyRegionByParticle inner_domain(diffusion_body, makeShared<MultiPolygonShape>(createInnerDomain()));
-	RegressionTestDynamicTimeWarping<BodyReducedQuantityRecording<
-		TotalAveragedParameterOnPartlyDiffusionBody<SolidBody, SolidParticles, Solid>>>
-		write_solid_average_temperature_part(in_output, diffusion_body, inner_domain, "Phi");
+		write_solid_temperature("Phi", io_environment, temperature_observer_contact);
+	BodyRegionByParticle inner_domain(diffusion_body, makeShared<MultiPolygonShape>(createInnerDomain(), "InnerDomain"));
+	RegressionTestDynamicTimeWarping<ReducedQuantityRecording<
+		ReduceAverage<DiffusionReactionSpeciesSummation<SolidParticles, Solid>, BodyRegionByParticle>>>
+		write_solid_average_temperature_part(io_environment, inner_domain, "Phi");
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -276,8 +251,8 @@ int main()
 	//----------------------------------------------------------------------
 	int ite = 0;
 	Real T0 = 20.0;
-	Real End_Time = T0;
-	Real Output_Time = 0.1 * End_Time;
+	Real end_time = T0;
+	Real Output_Time = 0.1 * end_time;
 	Real Observe_time = 0.1 * Output_Time;
 	Real dt = 0.0;
 	//----------------------------------------------------------------------
@@ -288,7 +263,7 @@ int main()
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
-	while (GlobalStaticVariables::physical_time_ < End_Time)
+	while (GlobalStaticVariables::physical_time_ < end_time)
 	{
 		Real integration_time = 0.0;
 		while (integration_time < Output_Time)

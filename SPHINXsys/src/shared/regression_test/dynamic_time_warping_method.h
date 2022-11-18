@@ -64,12 +64,12 @@ namespace SPH
 			dtw_distance_xml_engine_in_("dtw_distance_xml_engine_in", "dtw_distance"),
 			dtw_distance_xml_engine_out_("dtw_distance_xml_engine_out", "dtw_distance")
 		{
-			dtw_distance_filefullpath_ = this->input_folder_path_ + "/" + this->body_name_ + "_"
+			dtw_distance_filefullpath_ = this->input_folder_path_ + "/" + this->dynamics_range_name_ + "_"
 				+ this->quantity_name_ + "_dtwdistance.xml";
 		};
 		virtual ~RegressionTestDynamicTimeWarping() {};
 
-		void settingupTheTest(); /** setup the test and defined basic variables. */
+		void setupTheTest(); /** setup the test and defined basic variables. */
 		void readDTWDistanceFromXml(); /** read the old DTW distance from the .xml file. */
 		void updateDTWDistance(); /** update the maximum DTWDistance with the new result. */
 		void writeDTWDistanceToXml(); /* write the updated DTWDistance to .xml file.*/
@@ -84,7 +84,7 @@ namespace SPH
 			this->transposeTheIndex();
 			if (this->converged == "false")
 			{
-				settingupTheTest();
+				setupTheTest();
 				if (filter == "true")
 					this->filterExtremeValues();
 				readDTWDistanceFromXml();
@@ -108,13 +108,13 @@ namespace SPH
 			this->writeXmlToXmlFile();
 			this->readXmlFromXmlFile();
 			this->transposeTheIndex();
-			settingupTheTest();
+			setupTheTest();
 			if (filter == "true")
 				this->filterExtremeValues();
 			readDTWDistanceFromXml();
 			for (int n = 0; n != this->number_of_run_; ++n)
 			{
-				this->result_filefullpath_ = this->input_folder_path_ + "/" + this->body_name_
+				this->result_filefullpath_ = this->input_folder_path_ + "/" + this->dynamics_range_name_
 					+ "_" + this->quantity_name_ + "_Run_" + std::to_string(n) + "_result.xml";
 				if (!fs::exists(this->result_filefullpath_))
 				{
