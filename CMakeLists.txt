@@ -138,6 +138,11 @@ if(ACTIVATE_CUDA)
     add_subdirectory(cases_test_gpu)
 endif()
 
+set(BUILD_WITH_YONGCHUAN_YU_CASES OFF CACHE BOOL "Include Yongchuan Yu's cases into the project?")
+if(BUILD_WITH_YONGCHUAN_YU_CASES)
+add_subdirectory(cases_ycy)
+endif()
+
 add_subdirectory(modules)
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/PythonScriptStore/RegressionTest/regression_test_base_tool.py
