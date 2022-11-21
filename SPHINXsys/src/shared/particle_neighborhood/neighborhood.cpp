@@ -23,7 +23,7 @@ namespace SPH
 	}
 	//=================================================================================================//
 	void NeighborBuilder::createNeighbor(Neighborhood &neighborhood, const Real &distance,
-										 const Vecd &displacement, size_t index_j, const Real Vol_j)
+										 const Vecd &displacement, size_t index_j, const Real &Vol_j)
 	{
 		neighborhood.j_.push_back(index_j);
 		neighborhood.W_ij_.push_back(kernel_->W(distance, displacement));
@@ -34,7 +34,7 @@ namespace SPH
 	}
 	//=================================================================================================//
 	void NeighborBuilder::initializeNeighbor(Neighborhood &neighborhood, const Real &distance,
-											 const Vecd &displacement, size_t index_j, const Real Vol_j)
+											 const Vecd &displacement, size_t index_j, const Real &Vol_j)
 	{
 		size_t current_size = neighborhood.current_size_;
 		neighborhood.j_[current_size] = index_j;
@@ -45,7 +45,7 @@ namespace SPH
 	}
 	//=================================================================================================//
 	void NeighborBuilder::createNeighbor(Neighborhood &neighborhood, const Real &distance,
-										 const Vecd &displacement, size_t index_j, const Real Vol_j,
+										 const Vecd &displacement, size_t index_j, const Real &Vol_j,
 										 Real i_h_ratio, Real h_ratio_min)
 	{
 		neighborhood.j_.push_back(index_j);
@@ -58,8 +58,8 @@ namespace SPH
 	}
 	//=================================================================================================//
 	void NeighborBuilder::initializeNeighbor(Neighborhood &neighborhood, const Real &distance,
-						   const Vecd &displacement, size_t index_j, const Real Vol_j,
-						   Real i_h_ratio, Real h_ratio_min)
+											 const Vecd &displacement, size_t index_j, const Real &Vol_j,
+											 Real i_h_ratio, Real h_ratio_min)
 	{
 		size_t current_size = neighborhood.current_size_;
 		neighborhood.j_[current_size] = index_j;
@@ -81,38 +81,38 @@ namespace SPH
 	{
 		size_t index_j = std::get<0>(list_data_j);
 		Vecd displacement = pos_i - std::get<1>(list_data_j);
-		Real distance_metric = displacement.normSqr();
-		if (distance_metric < kernel_->CutOffRadiusSqr() && index_i != index_j)
+		Real distance_sqr = displacement.normSqr();
+		if (distance_sqr < kernel_->CutOffRadiusSqr() && index_i != index_j)
 		{
 			neighborhood.current_size_ >= neighborhood.allocated_size_
-				? createNeighbor(neighborhood, std::sqrt(distance_metric), displacement, index_j, std::get<2>(list_data_j))
-				: initializeNeighbor(neighborhood, std::sqrt(distance_metric), displacement, index_j, std::get<2>(list_data_j));
+				? createNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j))
+				: initializeNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j));
 			neighborhood.current_size_++;
 		}
 	};
 	//=================================================================================================//
-	AdaptiveNeighborBuilderInner::
-		AdaptiveNeighborBuilderInner(SPHBody &body)
+	NeighborBuilderInnerAdaptive::
+		NeighborBuilderInnerAdaptive(SPHBody &body)
 		: NeighborBuilder(),
 		  h_ratio_(*body.getBaseParticles().getVariableByName<Real>("SmoothingLengthRatio"))
 	{
 		kernel_ = body.sph_adaptation_->getKernel();
 	}
 	//=================================================================================================//
-	void AdaptiveNeighborBuilderInner::
+	void NeighborBuilderInnerAdaptive::
 	operator()(Neighborhood &neighborhood, const Vecd &pos_i, size_t index_i, const ListData &list_data_j)
 	{
 		size_t index_j = std::get<0>(list_data_j);
 		Vecd displacement = pos_i - std::get<1>(list_data_j);
-		Real distance = displacement.norm();
+		Real distance_sqr = displacement.normSqr();
 		Real i_h_ratio = h_ratio_[index_i];
 		Real h_ratio_min = SMIN(i_h_ratio, h_ratio_[index_j]);
-		Real cutoff_radius = kernel_->CutOffRadius(h_ratio_min);
-		if (distance < cutoff_radius && index_i != index_j)
+		Real cutoff_radius_sqr = kernel_->CutOffRadiusSqr(h_ratio_min);
+		if (distance_sqr < cutoff_radius_sqr && index_i != index_j)
 		{
 			neighborhood.current_size_ >= neighborhood.allocated_size_
-				? createNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j), i_h_ratio, h_ratio_min)
-				: initializeNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j), i_h_ratio, h_ratio_min);
+				? createNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j), i_h_ratio, h_ratio_min)
+				: initializeNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j), i_h_ratio, h_ratio_min);
 			neighborhood.current_size_++;
 		}
 	};
@@ -130,13 +130,14 @@ namespace SPH
 	{
 		size_t index_j = std::get<0>(list_data_j);
 		Vecd displacement = pos_i - std::get<1>(list_data_j);
-		Real distance = displacement.norm();
-		Real distance0 = (pos0_[index_i] - pos0_[index_j]).norm();
-		if (distance < kernel_->CutOffRadius() && distance0 > kernel_->CutOffRadius())
+		Real distance_sqr = displacement.normSqr();
+		Real distance0_sqr = (pos0_[index_i] - pos0_[index_j]).normSqr();
+		Real cutoff_radius_sqr = kernel_->CutOffRadiusSqr();
+		if (distance_sqr < cutoff_radius_sqr && distance0_sqr > cutoff_radius_sqr)
 		{
 			neighborhood.current_size_ >= neighborhood.allocated_size_
-				? createNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j))
-				: initializeNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j));
+				? createNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j))
+				: initializeNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j));
 			neighborhood.current_size_++;
 		}
 	};
@@ -154,17 +155,17 @@ namespace SPH
 	{
 		size_t index_j = std::get<0>(list_data_j);
 		Vecd displacement = pos_i - std::get<1>(list_data_j);
-		Real distance = displacement.norm();
-		if (distance < kernel_->CutOffRadius())
+		Real distance_sqr = displacement.normSqr();
+		if (distance_sqr < kernel_->CutOffRadiusSqr())
 		{
 			neighborhood.current_size_ >= neighborhood.allocated_size_
-				? createNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j))
-				: initializeNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j));
+				? createNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j))
+				: initializeNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j));
 			neighborhood.current_size_++;
 		}
 	};
 	//=================================================================================================//
-	NeighborBuilderSolidContact::NeighborBuilderSolidContact(SPHBody &body, SPHBody &contact_body)
+	NeighborBuilderSurfaceContact::NeighborBuilderSurfaceContact(SPHBody &body, SPHBody &contact_body)
 		: NeighborBuilderContact(body, contact_body)
 	{
 		Real source_smoothing_length = body.sph_adaptation_->ReferenceSmoothingLength();
@@ -194,12 +195,39 @@ namespace SPH
 	{
 		size_t index_j = std::get<0>(list_data_j);
 		Vecd displacement = pos_i - std::get<1>(list_data_j);
-		Real distance = displacement.norm();
-		if (distance < kernel_->CutOffRadius() && part_indicator_[index_j] == 1)
+		Real distance_sqr = displacement.normSqr();
+		if (distance_sqr < kernel_->CutOffRadiusSqr() && part_indicator_[index_j] == 1)
 		{
 			neighborhood.current_size_ >= neighborhood.allocated_size_
-				? createNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j))
-				: initializeNeighbor(neighborhood, distance, displacement, index_j, std::get<2>(list_data_j));
+				? createNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j))
+				: initializeNeighbor(neighborhood, std::sqrt(distance_sqr), displacement, index_j, std::get<2>(list_data_j));
+			neighborhood.current_size_++;
+		}
+	}
+	//=================================================================================================//
+	NeighborBuilderContactAdaptive::
+		NeighborBuilderContactAdaptive(SPHBody &body, SPHBody &contact_body)
+		: NeighborBuilder(), adaptation_(*body.sph_adaptation_), contact_adaptation_(*contact_body.sph_adaptation_),
+		  relative_h_ref_(adaptation_.ReferenceSmoothingLength() / contact_adaptation_.ReferenceSmoothingLength())
+	{
+		kernel_ = adaptation_.getKernel();
+	}
+	//=================================================================================================//
+	void NeighborBuilderContactAdaptive::operator()(Neighborhood &neighborhood,
+													const Vecd &pos_i, size_t index_i, const ListData &list_data_j)
+	{
+		size_t index_j = std::get<0>(list_data_j);
+		Vecd displacement = pos_i - std::get<1>(list_data_j);
+		Real distance_sqr = displacement.normSqr();
+		Real i_h_ratio = adaptation_.SmoothingLengthRatio(index_i);
+		Real h_ratio_min = SMIN(i_h_ratio, relative_h_ref_ * contact_adaptation_.SmoothingLengthRatio(index_j));
+		if (distance_sqr < kernel_->CutOffRadiusSqr(h_ratio_min))
+		{
+			neighborhood.current_size_ >= neighborhood.allocated_size_
+				? createNeighbor(neighborhood, std::sqrt(distance_sqr),
+								 displacement, index_j, std::get<2>(list_data_j), i_h_ratio, h_ratio_min)
+				: initializeNeighbor(neighborhood, std::sqrt(distance_sqr),
+									 displacement, index_j, std::get<2>(list_data_j), i_h_ratio, h_ratio_min);
 			neighborhood.current_size_++;
 		}
 	}
