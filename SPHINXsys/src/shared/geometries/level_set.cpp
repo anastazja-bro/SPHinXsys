@@ -54,6 +54,9 @@ namespace SPH
 		: MeshWithGridDataPackages<BaseLevelSet, LevelSetDataPackage>(
 			  tentative_bounds, data_spacing, buffer_size, shape, sph_adaptation),
 		  global_h_ratio_(sph_adaptation.ReferenceSpacing() / data_spacing),
+		  phi_(extra_variables_, "Levelset"),
+		  near_interface_id_(extra_variables_, "NearInterfaceID"),
+		  phi_gradient_(extra_variables_, "LevelsetGradient"),
 		  kernel_weight_(extra_variables_, "KernelWeight"),
 		  kernel_gradient_(extra_variables_, "KernelGradient"),
 		  kernel_(*sph_adaptation.getKernel())

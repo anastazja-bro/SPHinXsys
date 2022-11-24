@@ -86,6 +86,23 @@ namespace SPH
 	}
 	//=================================================================================================//
 	template <int PKG_SIZE, int ADDRS_BUFFER>
+	template <typename InDataType, typename OutDataType>
+	void GridDataPackage<PKG_SIZE, ADDRS_BUFFER>::
+		computeGradient(const DiscreteVariable<InDataType> &in_variable,
+						const DiscreteVariable<OutDataType> &out_variable)
+	{
+		auto &in_variable_addrs = getPackageDataAddress(in_variable);
+		auto &out_variable_addrs = getPackageDataAddress(out_variable);
+		for (int i = 1; i != pkg_size + 1; ++i)
+			for (int j = 1; j != pkg_size + 1; ++j)
+			{
+				Real dphidx = (*in_variable_addrs[i + 1][j] - *in_variable_addrs[i - 1][j]);
+				Real dphidy = (*in_variable_addrs[i][j + 1] - *in_variable_addrs[i][j - 1]);
+				*out_variable_addrs[i][j] = 0.5 * Vecd(dphidx, dphidy) / grid_spacing_;
+			}
+	}
+	//=================================================================================================//
+	template <int PKG_SIZE, int ADDRS_BUFFER>
 	template <typename DataType>
 	void GridDataPackage<PKG_SIZE, ADDRS_BUFFER>::initializePackageDataAddress<DataType>::
 	operator()(DataContainerAddressAssemble<PackageData> &all_pkg_data,

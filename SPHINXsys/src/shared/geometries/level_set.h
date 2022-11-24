@@ -135,6 +135,9 @@ namespace SPH
 
 	protected:
 		DiscreteVariableAssemble extra_variables_;
+		DiscreteVariable<Real> phi_;
+		DiscreteVariable<int> near_interface_id_;
+		DiscreteVariable<Vecd> phi_gradient_;
 		DiscreteVariable<Real> kernel_weight_;
 		DiscreteVariable<Vecd> kernel_gradient_;
 		Kernel &kernel_;

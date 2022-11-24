@@ -146,6 +146,9 @@ namespace SPH
 	//=================================================================================================//
 	void LevelSet::initializeSingularData(LevelSetDataPackage &data_pkg, Real far_field_level_set)
 	{
+		auto &phi = data_pkg.getPackageData(phi_);
+		auto &near_interface_id = data_pkg.getPackageData(near_interface_id_);
+		auto &phi_gradient = data_pkg.getPackageData(phi_gradient_);
 		auto &kernel_weight = data_pkg.getPackageData(kernel_weight_);
 		auto &kernel_gradient = data_pkg.getPackageData(kernel_gradient_);
 
@@ -153,9 +156,9 @@ namespace SPH
 			for (int j = 0; j != data_pkg.pkg_size; ++j)
 				for (int k = 0; k != data_pkg.pkg_size; ++k)
 				{
-					data_pkg.phi_[i][j][k] = far_field_level_set;
-					data_pkg.phi_gradient_[i][j][k] = Vecd(1.0);
-					data_pkg.near_interface_id_[i][j][k] = far_field_level_set < 0.0 ? -2 : 2;
+					phi[i][j][k] = far_field_level_set;
+					near_interface_id[i][j][k] = far_field_level_set < 0.0 ? -2 : 2;
+					phi_gradient[i][j][k] = Vec3d(1.0);
 					kernel_weight[i][j][k] = far_field_level_set < 0.0 ? 0 : 1.0;
 					kernel_gradient[i][j][k] = Vec3d(0);
 				}
