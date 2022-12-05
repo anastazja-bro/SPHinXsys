@@ -31,29 +31,20 @@
 #ifndef TRIANGULAR_MESH_SHAPE_H
 #define TRIANGULAR_MESH_SHAPE_H
 
-#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
-
 #include "base_geometry.h"
 #include "simbody_middle.h"
 
 #include <iostream>
 #include <string>
 #include <fstream>
-
-/** Macro for APPLE compilers*/
-#ifdef __APPLE__
-#include <boost/filesystem.hpp>
-namespace fs = boost::filesystem;
-#else
 #include <filesystem>
 namespace fs = std::filesystem;
-#endif
 
 namespace SPH
 {
 	/**
 	 * @class TriangleMeshShape
-	 * @brief Drived class for triangle shape processing. 
+	 * @brief Derived class for triangle shape processing. 
 	 */
 	class TriangleMeshShape : public Shape
 	{
@@ -103,7 +94,7 @@ namespace SPH
 
 	/**
 	 * @class TriangleMeshShapeBrick
-	 * @brief Generat a brick trianle meshe using SIMBODy default shape.
+	 * @brief Generate a brick triangle mesh using SIMBODy default shape.
 	 */
 	class TriangleMeshShapeBrick : public TriangleMeshShape
 	{
@@ -125,7 +116,7 @@ namespace SPH
 
 	/**
 	 * @class TriangleMeshShapeSphere
-	 * @brief Generat a sphere trianle meshe using SIMBODy default shape.
+	 * @brief Generate a sphere triangle mesh using SIMBODy default shape.
 	 */
 	class TriangleMeshShapeSphere : public TriangleMeshShape
 	{
@@ -137,7 +128,7 @@ namespace SPH
 
 	/**
 	 * @class TriangleMeshShapeCylinder
-	 * @brief Generat a cylinder trianle meshe using SIMBODy default shape.
+	 * @brief Generate a cylinder triangle mesh using SIMBODy default shape.
 	 */
 	class TriangleMeshShapeCylinder : public TriangleMeshShape
 	{
