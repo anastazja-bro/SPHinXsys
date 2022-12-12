@@ -41,53 +41,53 @@ Real Youngs_modulus = Ae * rho0_f * U_f * U_f;
 //------------------------------------------------------------------------------
 std::vector<Vecd> createWaterBlockShape()
 {
-	std::vector<Vecd> pnts_shaping_water_block;
-	pnts_shaping_water_block.push_back(Vecd(-DL_sponge, 0.0));
-	pnts_shaping_water_block.push_back(Vecd(-DL_sponge, DH));
-	pnts_shaping_water_block.push_back(Vecd(DL, DH));
-	pnts_shaping_water_block.push_back(Vecd(DL, 0.0));
-	pnts_shaping_water_block.push_back(Vecd(-DL_sponge, 0.0));
+	std::vector<Vecd> water_block_shape;
+	water_block_shape.push_back(Vecd(-DL_sponge, 0.0));
+	water_block_shape.push_back(Vecd(-DL_sponge, DH));
+	water_block_shape.push_back(Vecd(DL, DH));
+	water_block_shape.push_back(Vecd(DL, 0.0));
+	water_block_shape.push_back(Vecd(-DL_sponge, 0.0));
 
-	return pnts_shaping_water_block;
+	return water_block_shape;
 }
 Vec2d buffer_halfsize = Vec2d(0.5 * DL_sponge, 0.5 * DH);
 Vec2d buffer_translation = Vec2d(-DL_sponge, 0.0) + buffer_halfsize;
 
 std::vector<Vecd> createOuterWallShape()
 {
-	std::vector<Vecd> pnts_shaping_outer_wall;
-	pnts_shaping_outer_wall.push_back(Vecd(-DL_sponge - BW, -BW));
-	pnts_shaping_outer_wall.push_back(Vecd(-DL_sponge - BW, DH + BW));
-	pnts_shaping_outer_wall.push_back(Vecd(DL + BW, DH + BW));
-	pnts_shaping_outer_wall.push_back(Vecd(DL + BW, -BW));
-	pnts_shaping_outer_wall.push_back(Vecd(-DL_sponge - BW, -BW));
+	std::vector<Vecd> outer_wall_shape;
+	outer_wall_shape.push_back(Vecd(-DL_sponge - BW, -BW));
+	outer_wall_shape.push_back(Vecd(-DL_sponge - BW, DH + BW));
+	outer_wall_shape.push_back(Vecd(DL + BW, DH + BW));
+	outer_wall_shape.push_back(Vecd(DL + BW, -BW));
+	outer_wall_shape.push_back(Vecd(-DL_sponge - BW, -BW));
 
-	return pnts_shaping_outer_wall;
+	return outer_wall_shape;
 }
 
 std::vector<Vecd> createInnerWallShape()
 {
-	std::vector<Vecd> pnts_shaping_inner_wall;
-	pnts_shaping_inner_wall.push_back(Vecd(-DL_sponge - 2.0 * BW, 0.0));
-	pnts_shaping_inner_wall.push_back(Vecd(-DL_sponge - 2.0 * BW, DH));
-	pnts_shaping_inner_wall.push_back(Vecd(DL + 2.0 * BW, DH));
-	pnts_shaping_inner_wall.push_back(Vecd(DL + 2.0 * BW, 0.0));
-	pnts_shaping_inner_wall.push_back(Vecd(-DL_sponge - 2.0 * BW, 0.0));
+	std::vector<Vecd> inner_wall_shape;
+	inner_wall_shape.push_back(Vecd(-DL_sponge - 2.0 * BW, 0.0));
+	inner_wall_shape.push_back(Vecd(-DL_sponge - 2.0 * BW, DH));
+	inner_wall_shape.push_back(Vecd(DL + 2.0 * BW, DH));
+	inner_wall_shape.push_back(Vecd(DL + 2.0 * BW, 0.0));
+	inner_wall_shape.push_back(Vecd(-DL_sponge - 2.0 * BW, 0.0));
 
-	return pnts_shaping_inner_wall;
+	return inner_wall_shape;
 }
 
 Real head_size = 1.0;
 std::vector<Vecd> createFishBlockingShape()
 {
-	std::vector<Vecd> pnts_blocking_shape;
-	pnts_blocking_shape.push_back(Vecd(cx + head_size, cy - 0.4));
-	pnts_blocking_shape.push_back(Vecd(cx + head_size, cy + 0.4));
-	pnts_blocking_shape.push_back(Vecd(cx + 5.0, cy + 0.4));
-	pnts_blocking_shape.push_back(Vecd(cx + 5.0, cy - 0.4));
-	pnts_blocking_shape.push_back(Vecd(cx + head_size, cy - 0.4));
+	std::vector<Vecd> fish_blocking_shape;
+	fish_blocking_shape.push_back(Vecd(cx + head_size, cy - 0.4));
+	fish_blocking_shape.push_back(Vecd(cx + head_size, cy + 0.4));
+	fish_blocking_shape.push_back(Vecd(cx + 5.0, cy + 0.4));
+	fish_blocking_shape.push_back(Vecd(cx + 5.0, cy - 0.4));
+	fish_blocking_shape.push_back(Vecd(cx + head_size, cy - 0.4));
 
-	return pnts_blocking_shape;
+	return fish_blocking_shape;
 }
 //----------------------------------------------------------------------
 //	Complex shape for wall boundary, note that no partial overlap is allowed
@@ -347,7 +347,7 @@ int main(int ac, char *av[])
 	SimTK::CablePath tethering_line(cables, fixed_spot, SimTK::Vec3(0), tethered_spot, SimTK::Vec3(disp_cable_end[0], disp_cable_end[1], 0.0));
 	SimTK::CableSpring tethering_spring(forces, tethering_line, 100.0, 3.0, 10.0);
 
-	// discreted forces acting on the bodies
+	// discrete forces acting on the bodies
 	SimTK::Force::DiscreteForces force_on_bodies(forces, matter);
 	fixed_spot_info.addDecoration(SimTK::Transform(), SimTK::DecorativeSphere(0.02));
 	tethered_spot_info.addDecoration(SimTK::Transform(), SimTK::DecorativeSphere(0.4));
