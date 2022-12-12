@@ -58,6 +58,7 @@ namespace SPH
 		size_t gradient_species_index_;
 
 		virtual Real getReferenceDiffusivity() = 0;
+		virtual Real getDiffusionCoffWithBoundary(size_t particle_i) = 0;
 		virtual Real getInterParticleDiffusionCoff(size_t particle_i, size_t particle_j, Vecd &direction_from_j_to_i) = 0;
 	};
 
@@ -81,6 +82,7 @@ namespace SPH
 		virtual ~IsotropicDiffusion(){};
 
 		virtual Real getReferenceDiffusivity() override { return diff_cf_; };
+		virtual Real getDiffusionCoffWithBoundary(size_t particle_i) override { return diff_cf_; }
 		virtual Real getInterParticleDiffusionCoff(size_t particle_i, size_t particle_j, Vecd &direction_from_j_to_i) override
 		{
 			return diff_cf_;
@@ -134,8 +136,10 @@ namespace SPH
 	protected:
 		StdLargeVec<Vecd> local_bias_direction_;
 		StdLargeVec<Matd> local_transformed_diffusivity_;
+		StdLargeVec<Real> local_thermal_conductivity_;
 
 		void initializeFiberDirection();
+		void initializeThermalConductivity();
 
 	public:
 		LocalDirectionalDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
@@ -145,8 +149,22 @@ namespace SPH
 			material_type_name_ = "LocalDirectionalDiffusion";
 		};
 		virtual ~LocalDirectionalDiffusion(){};
+
+		virtual Real getDiffusionCoffWithBoundary(size_t particle_index_i) override
+		{
+			Matd diff_i = local_thermal_conductivity_[particle_index_i] * Matd::Identity();
+			local_transformed_diffusivity_[particle_index_i] = inverseCholeskyDecomposition(diff_i);
+			Matd trans_diffusivity = local_transformed_diffusivity_[particle_index_i];
+			Vecd grad_ij = trans_diffusivity * Vec2d(sqrt(2) / 2, sqrt(2) / 2);
+			return 1.0 / grad_ij.squaredNorm();
+		}
+
 		virtual Real getInterParticleDiffusionCoff(size_t particle_index_i, size_t particle_index_j, Vecd &inter_particle_direction) override
 		{
+			Matd diff_i = local_thermal_conductivity_[particle_index_i] * Matd::Identity();
+			Matd diff_j = local_thermal_conductivity_[particle_index_j] * Matd::Identity();
+			local_transformed_diffusivity_[particle_index_i] = inverseCholeskyDecomposition(diff_i);
+			local_transformed_diffusivity_[particle_index_j] = inverseCholeskyDecomposition(diff_j);
 			Matd trans_diffusivity = getAverageValue(local_transformed_diffusivity_[particle_index_i], local_transformed_diffusivity_[particle_index_j]);
 			Vecd grad_ij = trans_diffusivity * inter_particle_direction;
 			return 1.0 / grad_ij.squaredNorm();

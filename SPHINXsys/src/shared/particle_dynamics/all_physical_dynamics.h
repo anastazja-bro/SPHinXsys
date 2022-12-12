@@ -42,5 +42,6 @@
 #include "particle_dynamics_diffusion_reaction.hpp"
 #include "particle_dynamics_dissipation.h"
 #include "particle_dynamics_dissipation.hpp"
+#include "diffusion_optimization.h"
 
 #endif //ALL_PHYSICAL_DYNAMICS_H

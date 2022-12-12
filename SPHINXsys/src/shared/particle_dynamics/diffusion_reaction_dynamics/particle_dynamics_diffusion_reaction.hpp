@@ -37,10 +37,11 @@ namespace SPH
 	//=================================================================================================//
 	template <class BaseParticlesType, class BaseMaterialType, int NUM_SPECIES>
 	DiffusionReactionInitialCondition<BaseParticlesType, BaseMaterialType, NUM_SPECIES>::
-		DiffusionReactionInitialCondition(SPHBody &sph_body)
+		DiffusionReactionInitialCondition(SPHBody& sph_body)
 		: LocalDynamics(sph_body),
 		  DiffusionReactionSimpleData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(sph_body),
-		  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_) {}
+		  pos_(this->particles_->pos_), species_n_(this->particles_->species_n_),
+		  heat_source_(this->particles_->heat_source_), heat_flux_(this->particles_->heat_flux_) {};
 	//=================================================================================================//
 	template <class BaseParticlesType, class BaseMaterialType, int NUM_SPECIES>
 	GetDiffusionTimeStepSize<BaseParticlesType, BaseMaterialType, NUM_SPECIES>::

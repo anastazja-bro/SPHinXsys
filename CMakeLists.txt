@@ -76,6 +76,8 @@ if(TARGET Boost::program_options)
     target_link_libraries(sphinxsys_core INTERFACE Boost::program_options)
 endif()
 
+add_subdirectory(cases_bz)
+
 #------ Setup the concrete libraries
 add_subdirectory(SPHINXsys)
 add_subdirectory(modules)
