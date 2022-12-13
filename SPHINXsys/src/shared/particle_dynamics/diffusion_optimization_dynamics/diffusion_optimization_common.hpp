@@ -90,4 +90,4 @@ namespace SPH
 	}
 	//=================================================================================================//
 }
-#endif DIFFUSION_OPTIMIZATION_COMMON_HPP
+#endif //DIFFUSION_OPTIMIZATION_COMMON_HPP

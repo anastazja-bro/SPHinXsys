@@ -112,4 +112,4 @@ namespace SPH
 	};
 }
 
-#endif DIFFUSION_SPLITTING_BASE_H
+#endif //DIFFUSION_SPLITTING_BASE_H

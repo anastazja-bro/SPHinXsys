@@ -434,4 +434,4 @@ namespace SPH
 	}
 	//=================================================================================================//
 }
-#endif DIFFUSION_SPLITTING_PARAMETER_HPP
+#endif //DIFFUSION_SPLITTING_PARAMETER_HPP
