@@ -202,8 +202,6 @@ int main()
 	//	The contact map gives the topological connections between the bodies.
 	//	Basically the range of bodies to build neighbor particle lists.
 	//----------------------------------------------------------------------
-	InnerRelation diffusion_body_inner(diffusion_body);
-	InnerRelation wall_boundary_inner(wall_boundary);
 	ComplexRelation diffusion_body_complex(diffusion_body, { &wall_boundary });
 	ComplexRelation wall_boundary_complex(wall_boundary, { &diffusion_body });
 	ContactRelation thermal_diffusivity_observer_contact(thermal_diffusivity_observer, { &diffusion_body });
@@ -213,14 +211,6 @@ int main()
 	//----------------------------------------------------------------------
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<WallBoundaryInitialCondition> setup_boundary_condition(wall_boundary);
-	InteractionDynamics<UpdateUnitNormalVector<SolidParticles, Solid, SolidParticles, Solid>>
-		update_diffusion_body_normal_vector(diffusion_body_complex);
-	InteractionDynamics<UpdateUnitNormalVector<SolidParticles, Solid, SolidParticles, Solid>>
-		update_wall_boundary_normal_vector(wall_boundary_complex);
-	InteractionDynamics<UpdateNormalDistance<SolidParticles, Solid>>
-		update_normal_distance_domain(diffusion_body_inner);
-	InteractionDynamics<UpdateNormalDistance<SolidParticles, Solid>>
-		update_normal_distance_wall(wall_boundary_inner);
 	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -251,10 +241,6 @@ int main()
 	sph_system.initializeSystemConfigurations();
 	setup_diffusion_initial_condition.exec();
 	setup_boundary_condition.exec();
-	update_diffusion_body_normal_vector.parallel_exec();
-	update_wall_boundary_normal_vector.parallel_exec();
-	update_normal_distance_domain.parallel_exec();
-	update_normal_distance_wall.parallel_exec();
 	//----------------------------------------------------------------------
 	//	Load restart file if necessary.
 	//----------------------------------------------------------------------
@@ -307,7 +293,7 @@ int main()
 				out_file_observed_temperature << std::fixed << std::setprecision(9) << ite << "   " << calculate_averaged_temperature.parallel_exec() << "\n";
 			}
 			
-			dt = get_time_step_size.parallel_exec();
+			dt = 100.0 *get_time_step_size.parallel_exec();
 			temperature_splitting_with_boundary.parallel_exec(dt);
 			update_temperature_global_residual.parallel_exec(dt);
 			
