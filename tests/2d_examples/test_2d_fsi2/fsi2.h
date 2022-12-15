@@ -152,12 +152,12 @@ struct InflowVelocity
 	Vecd halfsize_;
 
 	template <class BoundaryConditionType>
-	InflowVelocity(BoundaryConditionType &boundary_condition)
+	explicit InflowVelocity(BoundaryConditionType &boundary_condition)
 		: u_ref_(U_f), t_ref_(2.0),
 		  aligned_box_(boundary_condition.getAlignedBox()),
 		  halfsize_(aligned_box_.HalfSize()) {}
 
-	Vecd operator()(Vecd &position, Vecd &velocity)
+	Vecd operator()(const Vecd &position, const Vecd &velocity)
 	{
 		Vecd target_velocity = velocity;
 		Real run_time = GlobalStaticVariables::physical_time_;
