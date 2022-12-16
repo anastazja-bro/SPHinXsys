@@ -34,11 +34,6 @@
 
 namespace SPH
 {
-    template <typename DataType>
-    class DiscreteVariable;
-    const bool sharedVariable = true;
-    typedef DataContainerAddressAssemble<DiscreteVariable> DiscreteVariableAssemble;
-
     /**
      * @class DiscreteVariable
      * @brief template base class for all discrete variables.
@@ -47,31 +42,58 @@ namespace SPH
     class DiscreteVariable
     {
     public:
-        DiscreteVariable(DiscreteVariableAssemble &variable_assemble,
-                         const std::string &name, bool is_shared = !sharedVariable)
-            : name_(name), index_in_container_(initializeIndex(variable_assemble, is_shared)){};
+        DiscreteVariable(size_t index_in_container, const std::string &name)
+            : index_in_container_(index_in_container), name_(name){};
         virtual ~DiscreteVariable(){};
         size_t IndexInContainer() const { return index_in_container_; };
         std::string VariableName() const { return name_; };
 
     private:
-        const std::string name_;
         size_t index_in_container_;
+        const std::string name_;
+    };
 
-        size_t initializeIndex(DiscreteVariableAssemble &variable_assemble, bool is_shared)
+    const bool sharedVariable = true;
+    typedef DataContainerAssemble<DiscreteVariable> DiscreteVariableAssemble;
+    template <typename DataType>
+    using VariableContainer = StdVec<DiscreteVariable<DataType>>;
+
+    /**
+     * @class DiscreteVariableManager
+     * @brief an assemble discrete variables and its management.
+     */
+    class DiscreteVariableManager
+    {
+    public:
+        DiscreteVariableManager(){};
+        virtual ~DiscreteVariableManager(){};
+        DiscreteVariableAssemble &VariableAssemble() { return variable_assemble_; };
+        template <typename DataType>
+        DiscreteVariable<DataType> &registerDiscreteVariable(
+            const std::string &name, bool is_shared = !sharedVariable)
         {
             constexpr int type_index = DataTypeIndex<DataType>::value;
-            auto &variable_container = std::get<type_index>(variable_assemble);
-            size_t determined_index = determineIndex(variable_container);
+            VariableContainer<DataType> &variable_container = std::get<type_index>(variable_assemble_);
+            size_t assigned_index = initializeIndex(variable_container, name, is_shared);
+            return variable_container[assigned_index];
+        };
+
+    protected:
+        DiscreteVariableAssemble variable_assemble_;
+
+        template <typename DataType>
+        size_t initializeIndex(VariableContainer<DataType> &variable_container, const std::string &name, bool is_shared)
+        {
+            size_t determined_index = determineIndex(variable_container, name);
 
             if (determined_index == variable_container.size()) // determined a new index
             {
-                variable_container.push_back(this);
+                variable_container.emplace_back(DiscreteVariable<DataType>(determined_index, name));
             }
             else if (!is_shared)
             {
-                std::cout << "\n Error: the variable: " << name_ << " is already used!" << std::endl;
-                std::cout << "\n Please check if " << name_ << " is a sharable variable." << std::endl;
+                std::cout << "\n Error: the variable: " << name << " is already used!" << std::endl;
+                std::cout << "\n Please check if " << name << " is a sharable variable." << std::endl;
                 std::cout << __FILE__ << ':' << __LINE__ << std::endl;
                 exit(1);
             }
@@ -79,20 +101,20 @@ namespace SPH
             return determined_index;
         };
 
-        template <typename VariableContainer>
-        size_t determineIndex(const VariableContainer &variable_container)
+        template <typename DataType>
+        size_t determineIndex(const VariableContainer<DataType> &variable_container, const std::string &name)
         {
             size_t i = 0;
             while (i != variable_container.size())
             {
-                if (variable_container[i]->VariableName() == name_)
+                if (variable_container[i].VariableName() == name)
                 {
                     return i;
                 }
                 ++i;
             }
             return variable_container.size();
-        }
+        };
     };
 }
 #endif // BASE_VARIABLES_H

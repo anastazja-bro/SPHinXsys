@@ -104,11 +104,11 @@ namespace SPH
 		Vecd computeKernelGradientIntegral(const Vecd &position);
 
 	protected:
-		DiscreteVariable<Real> phi_;
-		DiscreteVariable<int> near_interface_id_;
-		DiscreteVariable<Vecd> phi_gradient_;
-		DiscreteVariable<Real> kernel_weight_;
-		DiscreteVariable<Vecd> kernel_gradient_;
+		const DiscreteVariable<Real> &phi_;
+		const DiscreteVariable<int> &near_interface_id_;
+		const DiscreteVariable<Vecd> &phi_gradient_;
+		const DiscreteVariable<Real> &kernel_weight_;
+		const DiscreteVariable<Vecd> &kernel_gradient_;
 		Kernel &kernel_;
 
 		void initializeDataForSingularPackage(LevelSetDataPackage *data_pkg, Real far_field_level_set);

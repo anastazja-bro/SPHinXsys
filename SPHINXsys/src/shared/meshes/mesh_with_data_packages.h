@@ -255,7 +255,7 @@ namespace SPH
 		virtual Real DataSpacing() override { return data_spacing_; };
 
 	protected:
-		DiscreteVariableAssemble all_variables_;			   /**< all discrete variables on this mesh. */
+		DiscreteVariableManager variable_manager_;			   /**< managing all discrete variables on this mesh. */
 		MyMemoryPool<GridDataPackageType> data_pkg_pool_;	   /**< memory pool for all packages in the mesh. */
 		MeshDataMatrix<GridDataPackageType *> data_pkg_addrs_; /**< Address of data packages. */
 		ConcurrentVec<GridDataPackageType *> inner_data_pkgs_; /**< Inner data packages which is able to carry out spatial operations. */
@@ -273,27 +273,23 @@ namespace SPH
 		void allocateMeshDataMatrix(); /**< allocate memories for addresses of data packages. */
 		void deleteMeshDataMatrix();   /**< delete memories for addresses of data packages. */
 		template <typename InitializeSingularData>
-		void initializeASingularDataPackage(
-			const DataContainerAddressAssemble<DiscreteVariable> &all_variables,
-			const InitializeSingularData &initialize_singular_data)
+		void initializeASingularDataPackage(const InitializeSingularData &initialize_singular_data)
 		{
 			GridDataPackageType *new_data_pkg = data_pkg_pool_.malloc();
-			new_data_pkg->allocateAllVariables(all_variables);
+			new_data_pkg->allocateAllVariables(variable_manager_.VariableAssemble());
 			initialize_singular_data(new_data_pkg);
 			new_data_pkg->assignSingularPackageDataAddress();
 			singular_data_pkgs_addrs_.push_back(new_data_pkg);
 		};
 
 		template <typename InitializePackageData>
-		GridDataPackageType *createDataPackage(
-			const DataContainerAddressAssemble<DiscreteVariable> &all_variables,
-			const Vecu &cell_index,
-			const InitializePackageData &initialize_package_data)
+		GridDataPackageType *createDataPackage(const Vecu &cell_index,
+											   const InitializePackageData &initialize_package_data)
 		{
 			mutex_my_pool.lock();
 			GridDataPackageType *new_data_pkg = data_pkg_pool_.malloc();
 			mutex_my_pool.unlock();
-			new_data_pkg->allocateAllVariables(all_variables);
+			new_data_pkg->allocateAllVariables(variable_manager_.VariableAssemble());
 			Vecd cell_position = CellPositionFromIndex(cell_index);
 			Vecd pkg_lower_bound = GridPositionFromCellPosition(cell_position);
 			new_data_pkg->initializePackageGeometry(pkg_lower_bound, data_spacing_);
