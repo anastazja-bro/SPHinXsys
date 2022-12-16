@@ -1042,3 +1042,4 @@ dkms.conf
 # wasm build
 build_wasm_release
 build_wasm_debug
+.vscode/settings.json
