@@ -50,12 +50,12 @@ public:
 class DiffusionBodyInitialCondition : public InitializationCondition<Real>
 {
 public:
-	DiffusionBodyInitialCondition(SPHBody &diffusion_body)
+	explicit DiffusionBodyInitialCondition(SPHBody &diffusion_body)
 		: InitializationCondition<Real>(diffusion_body, "Phi"){};
 
 	void update(size_t index_i, Real dt)
 	{
-		variable_[index_i] = 400 + 50 * (double)rand() / RAND_MAX;
+		variable_[index_i] = 325.0 + 25.0 * (((double)rand() / (RAND_MAX)) - 0.5) * 2.0;
 	};
 };
 
@@ -66,7 +66,7 @@ protected:
 	StdLargeVec<Vecd> &pos_;
 
 public:
-	IsothermalBoundariesConstraints(SolidBody &diffusion_body)
+	explicit IsothermalBoundariesConstraints(SolidBody &diffusion_body)
 		: InitializationCondition<Real>(diffusion_body, "Phi"),
 		pos_(particles_->pos_){};
 
