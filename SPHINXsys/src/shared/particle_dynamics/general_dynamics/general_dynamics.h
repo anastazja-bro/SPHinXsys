@@ -44,6 +44,23 @@ namespace SPH
 		GeneralDataDelegateContact;
 
 	/**
+	 * @class InitializationCondition
+	 * @brief set initial condition for a discrete variable
+	 */
+	template <typename DataType>
+	class InitializationCondition : public LocalDynamics, public GeneralDataDelegateSimple
+	{
+	public:
+		InitializationCondition(SPHBody &sph_body, const std::string variable_name)
+			: LocalDynamics(sph_body), GeneralDataDelegateSimple(sph_body),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name)){};
+		virtual ~InitializationCondition(){};
+
+	protected:
+		StdLargeVec<DataType> &variable_;
+	};
+
+	/**
 	 * @class BaseTimeStepInitialization
 	 * @brief base class for time step initialization.
 	 */
@@ -110,7 +127,7 @@ namespace SPH
 			: LocalDynamics(inner_relation.sph_body_), GeneralDataDelegateInner(inner_relation),
 			  W0_(sph_body_.sph_adaptation_->getKernel()->W0(zero_vec)),
 			  smoothed_(*particles_->template getVariableByName<VariableType>(variable_name))
-		{	
+		{
 			Vecd zero = Vecd::Zero();
 			particles_->registerVariable(temp_, variable_name + "_temp");
 		}
@@ -299,7 +316,7 @@ namespace SPH
 		Gravity *gravity_;
 
 	public:
-		TotalMechanicalEnergy(SPHBody &sph_body, SharedPtr<Gravity> = makeShared<Gravity>( Vecd::Zero() ));
+		TotalMechanicalEnergy(SPHBody &sph_body, SharedPtr<Gravity> = makeShared<Gravity>(Vecd::Zero()));
 		virtual ~TotalMechanicalEnergy(){};
 
 		Real reduce(size_t index_i, Real dt = 0.0);

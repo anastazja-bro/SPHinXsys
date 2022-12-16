@@ -38,72 +38,49 @@ Vec2d bottom_constraint_translation = Vec2d(0.5 * L, -0.5 * BW); // bottom const
 class IsothermalBoundaries : public ComplexShape
 {
 public:
-	explicit ConstrainedRegions(const std::string &shape_name) : ComplexShape(shape_name)
+	explicit IsothermalBoundaries(const std::string &shape_name) : ComplexShape(shape_name)
 	{
 		add<TransformShape<GeometricShapeBox>>(Transform2d(top_constraint_translation), constraint_halfsize);
 		add<TransformShape<GeometricShapeBox>>(Transform2d(bottom_constraint_translation), constraint_halfsize);
 	}
 };
 //----------------------------------------------------------------------
-//	Setup diffusion material properties.
-//----------------------------------------------------------------------
-class DiffusionBodyMaterial : public DiffusionReaction<Solid>
-{
-public:
-	DiffusionBodyMaterial() : DiffusionReaction<Solid>(species_name_list)
-	{
-		initializeAnDiffusion<IsotropicDiffusion>("Phi", "Phi", diffusion_coff);
-	}
-};
-
-//----------------------------------------------------------------------
 //	Application dependent initial condition.
 //----------------------------------------------------------------------
-class DiffusionBodyInitialCondition
-	: public DiffusionReactionInitialCondition<SolidParticles, Solid>
+class DiffusionBodyInitialCondition : public InitializationCondition<Real>
 {
-protected:
-	StdLargeVec<Real> phi_;
+public:
+	DiffusionBodyInitialCondition(SPHBody &diffusion_body)
+		: InitializationCondition<Real>(diffusion_body, "Phi"){};
 
 	void update(size_t index_i, Real dt)
 	{
-		species_n_[phi_][index_i] = 400 + 50 * (double)rand() / RAND_MAX;
-		heat_source_[index_i] = heat_source;
+		variable_[index_i] = 400 + 50 * (double)rand() / RAND_MAX;
 	};
-
-public:
-	DiffusionBodyInitialCondition(SPHBody &diffusion_body)
-		: DiffusionReactionInitialCondition<SolidParticles, Solid>(diffusion_body),
-
-	{
-		phi_ = particles_->diffusion_reaction_material_.SpeciesIndexMap()["Phi"];
-	}
 };
 
 class IsothermalBoundariesConstraints
-	: public DiffusionReactionInitialCondition<SolidParticles, Solid>
+	: public InitializationCondition<Real>
 {
 protected:
-	size_t phi_;
+	StdLargeVec<Vecd> &pos_;
+
+public:
+	IsothermalBoundariesConstraints(SolidBody &diffusion_body)
+		: InitializationCondition<Real>(diffusion_body, "Phi"),
+		pos_(particles_->pos_){};
 
 	void update(size_t index_i, Real dt)
 	{
-		species_n_[phi_][index_i] = -0.0;
+		variable_[index_i] = -0.0;
 		if (pos_[index_i][1] < 0 && pos_[index_i][0] > 0.45 * L && pos_[index_i][0] < 0.55 * L)
 		{
-			species_n_[phi_][index_i] = lower_temperature;
+			variable_[index_i] = lower_temperature;
 		}
 		if (pos_[index_i][1] > 1 && pos_[index_i][0] > 0.45 * L && pos_[index_i][0] < 0.55 * L)
 		{
-			species_n_[phi_][index_i] = upper_temperature;
+			variable_[index_i] = upper_temperature;
 		}
-	}
-
-public:
-	IsothermalBoundaries(SolidBody &diffusion_body)
-		: DiffusionReactionInitialCondition<SolidParticles, Solid>(diffusion_body)
-	{
-		phi_ = particles_->diffusion_reaction_material_.SpeciesIndexMap()["Phi"];
 	}
 };
 //----------------------------------------------------------------------
@@ -119,26 +96,33 @@ int main()
 	//----------------------------------------------------------------------
 	//	Creating body, materials and particles.
 	//----------------------------------------------------------------------
-	SolidBody diffusion_body(sph_system, makeShared<DiffusionBody>("DiffusionBody"));
+	SolidBody diffusion_body(sph_system, makeShared<TransformShape<GeometricShapeBox>>(
+						Transform2d(solid_block_translation), solid_block_halfsize, "DiffusionBody"));
 	diffusion_body.defineParticlesAndMaterial<SolidParticles, Solid>();
 	diffusion_body.generateParticles<ParticleGeneratorLattice>();
+	StdLargeVec<Real> body_temperature;
+	diffusion_body.addBodyState<Real>(body_temperature, "Phi");
+	diffusion_body.addBodyStateForRecording<Real>("Phi");
+	diffusion_body.addBodyStateToRestart<Real>("Phi");
 
 	SolidBody isothermal_boundaries(sph_system, makeShared<IsothermalBoundaries>("IsoThermalBoundaries"));
-	wall_boundary.defineParticlesAndMaterial<SolidParticles, Solid>();
-	wall_boundary.generateParticles<ParticleGeneratorLattice>();
+	isothermal_boundaries.defineParticlesAndMaterial<SolidParticles, Solid>();
+	isothermal_boundaries.generateParticles<ParticleGeneratorLattice>();
+	StdLargeVec<Real> constrained_temperature;
+	isothermal_boundaries.addBodyState<Real>(constrained_temperature, "Phi");
+	isothermal_boundaries.addBodyStateForRecording<Real>("Phi");
 	//----------------------------------------------------------------------
 	//	Define body relation map.
 	//	The contact map gives the topological connections between the bodies.
 	//	Basically the range of bodies to build neighbor particle lists.
 	//----------------------------------------------------------------------
-	ComplexRelation diffusion_body_complex(diffusion_body, {&IsoThermalBoundary});
+	ComplexRelation diffusion_body_complex(diffusion_body, {&isothermal_boundaries});
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
 	//----------------------------------------------------------------------
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
-	SimpleDynamics<IsothermalBoundariesConstraints> setup_boundary_condition(IsoThermalBoundary);
-	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
+	SimpleDynamics<IsothermalBoundariesConstraints> setup_boundary_condition(isothermal_boundaries);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -147,7 +131,7 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingPairwiseWithWall<Real>>
+	InteractionSplit<DampingPairwiseWithWall<Real, DampingPairwiseInner>>
 		implicit_heat_transfer_solver(diffusion_body_complex, "Phi", diffusion_coff);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
@@ -173,10 +157,10 @@ int main()
 	Real T0 = 10;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
-	Real dt = 100.0 * get_time_step_size.parallel_exec();
+	Real dt = T0 / 1000.0;
+	int restart_output_interval = 1000;
 
 	/** Output global basic parameters.*/
-	write_solid_temperature.writeToFile(ite);
 	write_states.writeToFile(ite);
 	//----------------------------------------------------------------------
 	//	Statistics for CPU time
@@ -192,8 +176,7 @@ int main()
 		while (relaxation_time < Observe_time)
 		{
 
-			temperature_splitting_with_boundary.parallel_exec(dt);
-			update_temperature_global_residual.parallel_exec(dt);
+			implicit_heat_transfer_solver.parallel_exec(dt);
 
 			ite++;
 			relaxation_time += dt;
