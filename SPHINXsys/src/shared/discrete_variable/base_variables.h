@@ -42,8 +42,6 @@ namespace SPH
     class DiscreteVariable
     {
     public:
-        DiscreteVariable(size_t index_in_container, const std::string &name)
-            : index_in_container_(index_in_container), name_(name){};
         virtual ~DiscreteVariable(){};
         size_t IndexInContainer() const { return index_in_container_; };
         std::string VariableName() const { return name_; };
@@ -51,6 +49,10 @@ namespace SPH
     private:
         size_t index_in_container_;
         const std::string name_;
+        friend class DiscreteVariableManager;
+        /** only allowed to be constructed by DiscreteVariableManager */
+        DiscreteVariable(size_t index_in_container, const std::string &name)
+            : index_in_container_(index_in_container), name_(name){};
     };
 
     const bool sharedVariable = true;
@@ -68,14 +70,30 @@ namespace SPH
         DiscreteVariableManager(){};
         virtual ~DiscreteVariableManager(){};
         DiscreteVariableAssemble &VariableAssemble() { return variable_assemble_; };
+        /** here, we need return a copy because the elements in std::vector can be relocated */
         template <typename DataType>
-        DiscreteVariable<DataType> &registerDiscreteVariable(
+        DiscreteVariable<DataType> registerDiscreteVariable(
             const std::string &name, bool is_shared = !sharedVariable)
         {
             constexpr int type_index = DataTypeIndex<DataType>::value;
             VariableContainer<DataType> &variable_container = std::get<type_index>(variable_assemble_);
             size_t assigned_index = initializeIndex(variable_container, name, is_shared);
             return variable_container[assigned_index];
+        };
+        /** should be used for accessing data assemble immediately only */
+        template <typename DataType, template <typename DataTypeInContainer> typename DataContainerType>
+        DiscreteVariable<DataType> &DiscreteVariableByName(const std::string &name)
+        {
+            constexpr int type_index = DataTypeIndex<DataType>::value;
+            VariableContainer<DataType> &variable_container = std::get<type_index>(variable_assemble_);
+            size_t determined_index = determineIndex(variable_container, name);
+            if (determined_index == variable_container.size())
+            {
+                std::cout << "\n Error: the variable: " << name << " is not registered yet!" << std::endl;
+                std::cout << __FILE__ << ':' << __LINE__ << std::endl;
+                exit(1);
+            }
+            return variable_container[determined_index];
         };
 
     protected:
@@ -88,7 +106,7 @@ namespace SPH
 
             if (determined_index == variable_container.size()) // determined a new index
             {
-                variable_container.emplace_back(DiscreteVariable<DataType>(determined_index, name));
+                variable_container.push_back(DiscreteVariable<DataType>(determined_index, name));
             }
             else if (!is_shared)
             {
