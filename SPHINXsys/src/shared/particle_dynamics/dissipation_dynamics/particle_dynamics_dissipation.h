@@ -159,7 +159,7 @@ namespace SPH
 		virtual ~DampingPairwiseFromWall(){};
 		void interaction(size_t index_i, Real dt = 0.0);
 
-	private:
+	protected:
 		Real eta_; /**< damping coefficient */
 		StdLargeVec<Real> &Vol_, &mass_;
 		StdLargeVec<VariableType> &variable_;

@@ -142,7 +142,7 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingPairwiseWithWall<Real, DampingBySplittingInner>>
+	InteractionSplit<DampingPairwiseWithWall<Real, DampingPairwiseInner>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, diffusion_coff);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
