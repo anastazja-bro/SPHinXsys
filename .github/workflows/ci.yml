@@ -37,6 +37,7 @@ jobs:
             curl zip unzip tar `# when starting fresh on a WSL image for bootstrapping vcpkg`\
             pkg-config `# for installing libraries with vcpkg`\
             git \
+            xvfb \
             cmake \
             ninja-build \
             python3
