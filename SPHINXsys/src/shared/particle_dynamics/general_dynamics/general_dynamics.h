@@ -44,6 +44,23 @@ namespace SPH
 		GeneralDataDelegateContact;
 
 	/**
+	 * @class ValueAssignment
+	 * @brief set initial condition for a discrete variable
+	 */
+	template <typename DataType>
+	class ValueAssignment : public LocalDynamics, public GeneralDataDelegateSimple
+	{
+	public:
+		ValueAssignment(SPHBody &sph_body, const std::string &variable_name)
+			: LocalDynamics(sph_body), GeneralDataDelegateSimple(sph_body),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name)){};
+		virtual ~ValueAssignment(){};
+
+	protected:
+		StdLargeVec<DataType> &variable_;
+	};
+
+	/**
 	 * @class BaseTimeStepInitialization
 	 * @brief base class for time step initialization.
 	 */
