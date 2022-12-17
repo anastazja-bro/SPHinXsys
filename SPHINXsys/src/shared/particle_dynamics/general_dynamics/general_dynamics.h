@@ -339,18 +339,18 @@ namespace SPH
 		Gravity *gravity_;
 
 	public:
-		TotalMechanicalEnergy(SPHBody &sph_body, SharedPtr<Gravity> = makeShared<Gravity>(Vecd::Zero()));
+		explicit TotalMechanicalEnergy(SPHBody &sph_body, SharedPtr<Gravity> = makeShared<Gravity>(Vecd::Zero()));
 		virtual ~TotalMechanicalEnergy(){};
 
 		Real reduce(size_t index_i, Real dt = 0.0);
 	};
 
 	/**
-	 * @class ConvergenceCheck
-	 * @brief check whether a variable is converged
+	 * @class SteadySolutionCheck
+	 * @brief check whether a variable has reached a steady state
 	 */
 	template <typename DataType>
-	class ConvergenceCheck : public LocalDynamicsReduce<bool, ReduceAND>,
+	class SteadySolutionCheck : public LocalDynamicsReduce<bool, ReduceAND>,
 							 public GeneralDataDelegateSimple
 	{
 	protected:
@@ -358,7 +358,7 @@ namespace SPH
 		void updateTemporary(size_t index_i) { variable_temp_[index_i] = variable_[index_i]; };
 
 	public:
-		ConvergenceCheck(SPHBody &sph_body, const std::string &variable_name)
+		SteadySolutionCheck(SPHBody &sph_body, const std::string &variable_name)
 			: LocalDynamicsReduce<bool, ReduceAND>(sph_body, true),
 			  GeneralDataDelegateSimple(sph_body),
 			  variable_(*particles_->getVariableByName<DataType>(variable_name))
@@ -367,7 +367,7 @@ namespace SPH
 										 [&](size_t index_i)
 										 { return variable_[index_i]; });
 		};
-		virtual ~ConvergenceCheck(){};
+		virtual ~SteadySolutionCheck(){};
 	};
 
 }

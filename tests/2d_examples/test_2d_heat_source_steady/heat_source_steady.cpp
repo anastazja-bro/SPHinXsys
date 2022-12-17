@@ -76,11 +76,11 @@ public:
 //----------------------------------------------------------------------
 //	Check convergence of temperature
 //----------------------------------------------------------------------
-class TemperatureConvergenceCheck : public ConvergenceCheck<Real>
+class SteadyTemperatureCheck : public SteadySolutionCheck<Real>
 {
 public:
-	explicit TemperatureConvergenceCheck(SPHBody &diffusion_body)
-		: ConvergenceCheck<Real>(diffusion_body, variable_name){};
+	explicit SteadyTemperatureCheck(SPHBody &diffusion_body)
+		: SteadySolutionCheck<Real>(diffusion_body, variable_name){};
 
 	bool reduce(size_t index_i, Real dt)
 	{
@@ -133,7 +133,7 @@ int main()
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<IsothermalBoundariesConstraints> setup_boundary_condition(isothermal_boundaries);
 	SimpleDynamics<SourceAssignment<Real>> thermal_source(diffusion_body, variable_name, heat_source);
-	ReduceDynamics<TemperatureConvergenceCheck> check_temperature_convergence(diffusion_body);
+	ReduceDynamics<SteadyTemperatureCheck> check_steady_temperature(diffusion_body);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -197,11 +197,6 @@ int main()
 			if (ite % 100 == 0)
 			{
 				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
-				if (check_temperature_convergence.parallel_exec())
-				{
-					std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
-					exit(0);
-				}
 			}
 
 			if (ite % restart_output_interval == 0)
@@ -211,11 +206,17 @@ int main()
 		}
 
 		write_states.writeToFile(ite);
+		if (check_steady_temperature.parallel_exec())
+		{
+			std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
+			return 0;
+		}
 	}
 
 	tick_count t4 = tick_count::now();
 	tick_count::interval_t tt;
 	tt = t4 - t1;
+	std::cout << "The computation has finished, but the solution is still not steady yet." << std::endl;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 	return 0;
 }
