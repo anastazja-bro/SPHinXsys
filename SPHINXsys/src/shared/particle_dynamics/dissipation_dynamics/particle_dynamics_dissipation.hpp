@@ -217,9 +217,8 @@ namespace SPH
 		Real Vol_i = Vol_[index_i];
 		Real mass_i = mass_[index_i];
 		VariableType &variable_i = variable_[index_i];
+		const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
 
-		std::array<Real, MaximumNeighborhoodSize> parameter_b;
-		Neighborhood &inner_neighborhood = inner_configuration_[index_i];
 		// forward sweep
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
@@ -227,10 +226,10 @@ namespace SPH
 			Real mass_j = mass_[index_j];
 
 			VariableType variable_derivative = (variable_i - variable_[index_j]);
-			parameter_b[n] = eta_ * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+			Real parameter_b = eta_ * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
 
-			VariableType increment = parameter_b[n] * variable_derivative / (mass_i * mass_j - parameter_b[n] * (mass_i + mass_j));
-			variable_[index_i] += increment * mass_j;
+			VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
+			variable_i += increment * mass_j;
 			variable_[index_j] -= increment * mass_i;
 		}
 
@@ -241,9 +240,10 @@ namespace SPH
 			Real mass_j = mass_[index_j];
 
 			VariableType variable_derivative = (variable_i - variable_[index_j]);
-			VariableType increment = parameter_b[n - 1] * variable_derivative / (mass_i * mass_j - parameter_b[n - 1] * (mass_i + mass_j));
+			Real parameter_b = eta_ * inner_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt / inner_neighborhood.r_ij_[n - 1];
 
-			variable_[index_i] += increment * mass_j;
+			VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
+			variable_i += increment * mass_j;
 			variable_[index_j] -= increment * mass_i;
 		}
 	}
@@ -256,7 +256,6 @@ namespace SPH
 	{
 		for (size_t k = 0; k != contact_particles_.size(); ++k)
 		{
-			contact_Vol_.push_back(&(contact_particles_[k]->Vol_));
 			contact_mass_.push_back(&(contact_particles_[k]->mass_));
 			contact_variable_.push_back(contact_particles_[k]->template getVariableByName<VariableType>(variable_name));
 		}
@@ -277,12 +276,9 @@ namespace SPH
 		Real mass_i = this->mass_[index_i];
 		VariableType &variable_i = this->variable_[index_i];
 
-		std::array<Real, MaximumNeighborhoodSize> parameter_b;
-
 		/** Contact interaction. */
 		for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
 		{
-			StdLargeVec<Real> &Vol_k = *(this->contact_Vol_[k]);
 			StdLargeVec<Real> &mass_k = *(this->contact_mass_[k]);
 			StdLargeVec<VariableType> &variable_k = *(this->contact_variable_[k]);
 			Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
@@ -293,10 +289,10 @@ namespace SPH
 				Real mass_j = mass_k[index_j];
 
 				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				parameter_b[n] = this->eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
+				Real parameter_b = this->eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
 
-				VariableType increment = parameter_b[n] * variable_derivative / (mass_i * mass_j - parameter_b[n] * (mass_i + mass_j));
-				this->variable_[index_i] += increment * mass_j;
+				VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
+				variable_i += increment * mass_j;
 				variable_k[index_j] -= increment * mass_i;
 			}
 			// backward sweep
@@ -306,72 +302,11 @@ namespace SPH
 				Real mass_j = mass_k[index_j];
 
 				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				VariableType increment = parameter_b[n - 1] * variable_derivative / (mass_i * mass_j - parameter_b[n - 1] * (mass_i + mass_j));
+				Real parameter_b = this->eta_ * contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt / contact_neighborhood.r_ij_[n - 1];
 
-				this->variable_[index_i] += increment * mass_j;
+				VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
+				variable_i += increment * mass_j;
 				variable_k[index_j] -= increment * mass_i;
-			}
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType,
-			  template <typename BaseVariableType> class BaseDampingPairwiseType>
-	DampingPairwiseWithWall<VariableType, BaseDampingPairwiseType>::
-		DampingPairwiseWithWall(BaseInnerRelation &inner_relation,
-								BaseContactRelation &contact_relation, const std::string &variable_name, Real eta)
-		: BaseDampingPairwiseType<VariableType>(inner_relation, variable_name, eta),
-		  DissipationDataWithWall(contact_relation)
-	{
-		for (size_t k = 0; k != DissipationDataWithWall::contact_particles_.size(); ++k)
-		{
-			wall_Vol_.push_back(&(contact_particles_[k]->Vol_));
-			wall_variable_.push_back(contact_particles_[k]->template getVariableByName<VariableType>(variable_name));
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType,
-			  template <typename BaseVariableType> class BaseDampingPairwiseType>
-	DampingPairwiseWithWall<VariableType, BaseDampingPairwiseType>::
-		DampingPairwiseWithWall(ComplexRelation &complex_wall_relation, const std::string &variable_name, Real eta)
-		: DampingPairwiseWithWall(complex_wall_relation.getInnerRelation(),
-								  complex_wall_relation.getContactRelation(), variable_name, eta) {}
-	//=================================================================================================//
-	template <typename VariableType,
-			  template <typename BaseVariableType> class BaseDampingPairwiseType>
-	void DampingPairwiseWithWall<VariableType, BaseDampingPairwiseType>::
-		interaction(size_t index_i, Real dt)
-	{
-		BaseDampingPairwiseType<VariableType>::interaction(index_i, dt);
-
-		Real Vol_i = this->Vol_[index_i];
-		Real mass_i = this->mass_[index_i];
-		VariableType &variable_i = this->variable_[index_i];
-
-		std::array<Real, MaximumNeighborhoodSize> parameter_b;
-
-		/** Contact interaction. */
-		for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
-		{
-			StdLargeVec<Real> &Vol_k = *(this->wall_Vol_[k]);
-			StdLargeVec<VariableType> &variable_k = *(this->wall_variable_[k]);
-			Neighborhood &contact_neighborhood = (*DissipationDataWithWall::contact_configuration_[k])[index_i];
-			// forward sweep
-			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
-			{
-				size_t index_j = contact_neighborhood.j_[n];
-
-				parameter_b[n] = this->eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
-
-				// only update particle i
-				this->variable_[index_i] += parameter_b[n] * (variable_i - variable_k[index_j]) / (mass_i - 2.0 * parameter_b[n]);
-			}
-			// backward sweep
-			for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
-			{
-				size_t index_j = contact_neighborhood.j_[n - 1];
-
-				// only update particle i
-				this->variable_[index_i] += parameter_b[n - 1] * (variable_i - variable_k[index_j]) / (mass_i - 2.0 * parameter_b[n - 1]);
 			}
 		}
 	}
@@ -386,7 +321,6 @@ namespace SPH
 	{
 		for (size_t k = 0; k != contact_particles_.size(); ++k)
 		{
-			wall_Vol_.push_back(&(contact_particles_[k]->Vol_));
 			wall_variable_.push_back(contact_particles_[k]->template getVariableByName<VariableType>(variable_name));
 		}
 	}
@@ -398,40 +332,62 @@ namespace SPH
 		Real mass_i = mass_[index_i];
 		VariableType &variable_i = variable_[index_i];
 
-		std::array<Real, MaximumNeighborhoodSize> parameter_b;
-
-		/** Contact interaction. */
+		// interaction with wall
 		for (size_t k = 0; k < contact_configuration_.size(); ++k)
 		{
-			StdLargeVec<Real> &Vol_k = *(wall_Vol_[k]);
 			StdLargeVec<VariableType> &variable_k = *(wall_variable_[k]);
 			Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
 			// forward sweep
 			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
 			{
+				Real parameter_b = eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
 				size_t index_j = contact_neighborhood.j_[n];
 
-				parameter_b[n] = eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
-
 				// only update particle i
-				variable_[index_i] += parameter_b[n] * (variable_i - variable_k[index_j]) / (mass_i - 2.0 * parameter_b[n]);
+				variable_i += parameter_b * (variable_i - variable_k[index_j]) / (mass_i - parameter_b);
 			}
+
 			// backward sweep
 			for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
 			{
+				Real parameter_b = eta_ * contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt / contact_neighborhood.r_ij_[n - 1];
 				size_t index_j = contact_neighborhood.j_[n - 1];
 
 				// only update particle i
-				variable_[index_i] += parameter_b[n - 1] * (variable_i - variable_k[index_j]) / (mass_i - 2.0 * parameter_b[n - 1]);
+				variable_i += parameter_b * (variable_i - variable_k[index_j]) / (mass_i - parameter_b);
 			}
 		}
+	}
+	//=================================================================================================//
+	template <typename VariableType,
+			  template <typename BaseVariableType> class BaseDampingPairwiseType>
+	DampingPairwiseWithWall<VariableType, BaseDampingPairwiseType>::
+		DampingPairwiseWithWall(BaseInnerRelation &inner_relation,
+								BaseContactRelation &contact_relation, const std::string &variable_name, Real eta)
+		: DampingPairwiseFromWall<VariableType>(contact_relation, variable_name, eta),
+		  inner_interaction_(inner_relation, variable_name, eta) {}
+	//=================================================================================================//
+	template <typename VariableType,
+			  template <typename BaseVariableType> class BaseDampingPairwiseType>
+	DampingPairwiseWithWall<VariableType, BaseDampingPairwiseType>::
+		DampingPairwiseWithWall(ComplexRelation &complex_wall_relation, const std::string &variable_name, Real eta)
+		: DampingPairwiseWithWall(complex_wall_relation.getInnerRelation(),
+								  complex_wall_relation.getContactRelation(), variable_name, eta) {}
+	//=================================================================================================//
+	template <typename VariableType,
+			  template <typename BaseVariableType> class BaseDampingPairwiseType>
+	void DampingPairwiseWithWall<VariableType, BaseDampingPairwiseType>::
+		interaction(size_t index_i, Real dt)
+	{
+		DampingPairwiseFromWall<VariableType>::interaction(index_i, dt);
+		inner_interaction_.interaction(index_i, dt);
 	}
 	//=================================================================================================//
 	template <class DampingAlgorithmType>
 	template <typename... ConstructorArgs>
 	DampingWithRandomChoice<DampingAlgorithmType>::
 		DampingWithRandomChoice(Real random_ratio, ConstructorArgs &&...args)
-		: DampingAlgorithmType(std::forward<ConstructorArgs>(args)...), random_ratio_(random_ratio) 
+		: DampingAlgorithmType(std::forward<ConstructorArgs>(args)...), random_ratio_(random_ratio)
 	{
 		this->eta_ /= random_ratio;
 	}

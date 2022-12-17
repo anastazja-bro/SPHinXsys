@@ -31,7 +31,7 @@ Vec2d solid_block_halfsize = Vec2d(0.5 * L, 0.5 * H);			 // local center at orig
 Vec2d solid_block_translation = solid_block_halfsize;			 // translation to global coordinates
 Vec2d constraint_halfsize = Vec2d(0.05 * L, 0.5 * BW);			 // constraint region size
 Vec2d top_constraint_translation = Vec2d(0.5 * L, L + 0.5 * BW); // top constraint region
-Vec2d bottom_constraint_translation = Vec2d(0.5 * L, -0.5 * BW); // bottom constraint region
+Vec2d bottom_constraint_translation = Vec2d(0.5 * L, - 0.5 * BW); // bottom constraint region
 class IsothermalBoundaries : public ComplexShape
 {
 public:
@@ -58,8 +58,7 @@ public:
 //----------------------------------------------------------------------
 //	Constraints for isothermal boundaries.
 //----------------------------------------------------------------------
-class IsothermalBoundariesConstraints
-	: public ValueAssignment<Real>
+class IsothermalBoundariesConstraints : public ValueAssignment<Real>
 {
 protected:
 	StdLargeVec<Vecd> &pos_;
@@ -71,7 +70,7 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		variable_[index_i] = pos_[index_i][1] < 0.0 ? lower_temperature : upper_temperature;
+		variable_[index_i] = pos_[index_i][1] > 0.0 ? lower_temperature : upper_temperature;
 	}
 };
 //----------------------------------------------------------------------
@@ -123,7 +122,7 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingPairwiseWithWall<Real, DampingPairwiseInner>>
+	InteractionSplit<DampingPairwiseWithWall<Real, DampingBySplittingInner>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, diffusion_coff);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
@@ -146,7 +145,7 @@ int main()
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	int ite = sph_system.RestartStep();
-	Real T0 = 10;
+	Real T0 = 1;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
 	Real dt = T0 / 1000.0;

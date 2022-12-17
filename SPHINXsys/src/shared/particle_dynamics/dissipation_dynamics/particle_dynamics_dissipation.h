@@ -141,30 +141,8 @@ namespace SPH
 		void interaction(size_t index_i, Real dt = 0.0);
 
 	private:
-		StdVec<StdLargeVec<Real> *> contact_Vol_, contact_mass_;
+		StdVec<StdLargeVec<Real> *> contact_mass_;
 		StdVec<StdLargeVec<VariableType> *> contact_variable_;
-	};
-
-	/**
-	 * @class DampingPairwiseWithWall
-	 * @brief Damping with wall by which the wall velocity is not updated
-	 * and the mass of wall particle is not considered.
-	 */
-	template <typename VariableType,
-			  template <typename BaseVariableType> class BaseDampingPairwiseType>
-	class DampingPairwiseWithWall : public BaseDampingPairwiseType<VariableType>,
-									public DissipationDataWithWall
-	{
-	public:
-		DampingPairwiseWithWall(BaseInnerRelation &inner_relation,
-								BaseContactRelation &contact_relation, const std::string &variable_name, Real eta);
-		DampingPairwiseWithWall(ComplexRelation &complex_wall_relation, const std::string &variable_name, Real eta);
-		virtual ~DampingPairwiseWithWall(){};
-		void interaction(size_t index_i, Real dt = 0.0);
-
-	private:
-		StdVec<StdLargeVec<Real> *> wall_Vol_;
-		StdVec<StdLargeVec<VariableType> *> wall_variable_;
 	};
 
 	/**
@@ -185,8 +163,25 @@ namespace SPH
 		Real eta_; /**< damping coefficient */
 		StdLargeVec<Real> &Vol_, &mass_;
 		StdLargeVec<VariableType> &variable_;
-		StdVec<StdLargeVec<Real> *> wall_Vol_;
 		StdVec<StdLargeVec<VariableType> *> wall_variable_;
+	};
+
+	/**
+	 * @class DampingPairwiseWithWall
+	 * @brief Damping with wall by which the wall velocity is not updated
+	 * and the mass of wall particle is not considered.
+	 */
+	template <typename VariableType,
+			  template <typename BaseVariableType> class BaseDampingPairwiseType>
+	class DampingPairwiseWithWall : public DampingPairwiseFromWall<VariableType>
+	{
+		BaseDampingPairwiseType<VariableType> inner_interaction_;
+	public:
+		DampingPairwiseWithWall(BaseInnerRelation &inner_relation,
+								BaseContactRelation &contact_relation, const std::string &variable_name, Real eta);
+		DampingPairwiseWithWall(ComplexRelation &complex_wall_relation, const std::string &variable_name, Real eta);
+		virtual ~DampingPairwiseWithWall(){};
+		void interaction(size_t index_i, Real dt = 0.0);
 	};
 
 	/**
