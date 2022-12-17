@@ -6,24 +6,21 @@
 #include "sphinxsys.h" //SPHinXsys Library
 using namespace SPH;   // Namespace cite here
 //----------------------------------------------------------------------
-//	Basic geometry parameters and numerical setup.
+//	Global geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real L = 1.0;
-Real H = 1.0;
+Real L = 1.0; // inner domain length
+Real H = 1.0; // inner domain height
 Real resolution_ref = H / 100.0;
-Real BW = resolution_ref * 2.0;
+Real BW = resolution_ref * 2.0; // boundary thickness
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //----------------------------------------------------------------------
-//	Basic parameters for material properties.
+//	Global parameters for material properties.
 //----------------------------------------------------------------------
 Real diffusion_coff = 1;
-Real alpha = Pi / 4.0;
-Vec2d bias_direction(cos(alpha), sin(alpha));
-std::array<std::string, 1> species_name_list{"Phi"};
 //----------------------------------------------------------------------
-//	Initial and boundary conditions.
+//	Global parameters for setting up variables.
 //----------------------------------------------------------------------
-Real initial_temperature = 0.0;
+std::string variable_name = "Phi";
 Real lower_temperature = 300.0;
 Real upper_temperature = 350.0;
 Real heat_source = 100.0;
@@ -32,7 +29,7 @@ Real heat_source = 100.0;
 //----------------------------------------------------------------------
 Vec2d solid_block_halfsize = Vec2d(0.5 * L, 0.5 * H);			 // local center at origin
 Vec2d solid_block_translation = solid_block_halfsize;			 // translation to global coordinates
-Vec2d constraint_halfsize = Vec2d(0.05 * L, 0.5 * BW);			 // top constraint region
+Vec2d constraint_halfsize = Vec2d(0.05 * L, 0.5 * BW);			 // constraint region size
 Vec2d top_constraint_translation = Vec2d(0.5 * L, L + 0.5 * BW); // top constraint region
 Vec2d bottom_constraint_translation = Vec2d(0.5 * L, -0.5 * BW); // bottom constraint region
 class IsothermalBoundaries : public ComplexShape
@@ -47,40 +44,34 @@ public:
 //----------------------------------------------------------------------
 //	Application dependent initial condition.
 //----------------------------------------------------------------------
-class DiffusionBodyInitialCondition : public InitializationCondition<Real>
+class DiffusionBodyInitialCondition : public ValueAssignment<Real>
 {
 public:
 	explicit DiffusionBodyInitialCondition(SPHBody &diffusion_body)
-		: InitializationCondition<Real>(diffusion_body, "Phi"){};
+		: ValueAssignment<Real>(diffusion_body, variable_name){};
 
 	void update(size_t index_i, Real dt)
 	{
 		variable_[index_i] = 325.0 + 25.0 * (((double)rand() / (RAND_MAX)) - 0.5) * 2.0;
 	};
 };
-
+//----------------------------------------------------------------------
+//	Constraints for isothermal boundaries.
+//----------------------------------------------------------------------
 class IsothermalBoundariesConstraints
-	: public InitializationCondition<Real>
+	: public ValueAssignment<Real>
 {
 protected:
 	StdLargeVec<Vecd> &pos_;
 
 public:
-	explicit IsothermalBoundariesConstraints(SolidBody &diffusion_body)
-		: InitializationCondition<Real>(diffusion_body, "Phi"),
-		pos_(particles_->pos_){};
+	explicit IsothermalBoundariesConstraints(SolidBody &isothermal_boundaries)
+		: ValueAssignment<Real>(isothermal_boundaries, variable_name),
+		  pos_(particles_->pos_){};
 
 	void update(size_t index_i, Real dt)
 	{
-		variable_[index_i] = -0.0;
-		if (pos_[index_i][1] < 0 && pos_[index_i][0] > 0.45 * L && pos_[index_i][0] < 0.55 * L)
-		{
-			variable_[index_i] = lower_temperature;
-		}
-		if (pos_[index_i][1] > 1 && pos_[index_i][0] > 0.45 * L && pos_[index_i][0] < 0.55 * L)
-		{
-			variable_[index_i] = upper_temperature;
-		}
+		variable_[index_i] = pos_[index_i][1] < 0.0 ? lower_temperature : upper_temperature;
 	}
 };
 //----------------------------------------------------------------------
@@ -96,21 +87,22 @@ int main()
 	//----------------------------------------------------------------------
 	//	Creating body, materials and particles.
 	//----------------------------------------------------------------------
-	SolidBody diffusion_body(sph_system, makeShared<TransformShape<GeometricShapeBox>>(
-						Transform2d(solid_block_translation), solid_block_halfsize, "DiffusionBody"));
+	SolidBody diffusion_body(sph_system,
+							 makeShared<TransformShape<GeometricShapeBox>>(
+								 Transform2d(solid_block_translation), solid_block_halfsize, "DiffusionBody"));
 	diffusion_body.defineParticlesAndMaterial<SolidParticles, Solid>();
 	diffusion_body.generateParticles<ParticleGeneratorLattice>();
 	StdLargeVec<Real> body_temperature;
-	diffusion_body.addBodyState<Real>(body_temperature, "Phi");
-	diffusion_body.addBodyStateForRecording<Real>("Phi");
-	diffusion_body.addBodyStateToRestart<Real>("Phi");
+	diffusion_body.addBodyState<Real>(body_temperature, variable_name);
+	diffusion_body.addBodyStateForRecording<Real>(variable_name);
+	diffusion_body.addBodyStateToRestart<Real>(variable_name);
 
 	SolidBody isothermal_boundaries(sph_system, makeShared<IsothermalBoundaries>("IsoThermalBoundaries"));
 	isothermal_boundaries.defineParticlesAndMaterial<SolidParticles, Solid>();
 	isothermal_boundaries.generateParticles<ParticleGeneratorLattice>();
 	StdLargeVec<Real> constrained_temperature;
-	isothermal_boundaries.addBodyState<Real>(constrained_temperature, "Phi");
-	isothermal_boundaries.addBodyStateForRecording<Real>("Phi");
+	isothermal_boundaries.addBodyState<Real>(constrained_temperature, variable_name);
+	isothermal_boundaries.addBodyStateForRecording<Real>(variable_name);
 	//----------------------------------------------------------------------
 	//	Define body relation map.
 	//	The contact map gives the topological connections between the bodies.
@@ -132,7 +124,7 @@ int main()
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
 	InteractionSplit<DampingPairwiseWithWall<Real, DampingPairwiseInner>>
-		implicit_heat_transfer_solver(diffusion_body_complex, "Phi", diffusion_coff);
+		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, diffusion_coff);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
