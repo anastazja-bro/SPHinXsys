@@ -31,7 +31,7 @@ Vec2d solid_block_halfsize = Vec2d(0.5 * L, 0.5 * H);			 // local center at orig
 Vec2d solid_block_translation = solid_block_halfsize;			 // translation to global coordinates
 Vec2d constraint_halfsize = Vec2d(0.05 * L, 0.5 * BW);			 // constraint region size
 Vec2d top_constraint_translation = Vec2d(0.5 * L, L + 0.5 * BW); // top constraint region
-Vec2d bottom_constraint_translation = Vec2d(0.5 * L, - 0.5 * BW); // bottom constraint region
+Vec2d bottom_constraint_translation = Vec2d(0.5 * L, -0.5 * BW); // bottom constraint region
 class IsothermalBoundaries : public ComplexShape
 {
 public:
@@ -74,6 +74,24 @@ public:
 	}
 };
 //----------------------------------------------------------------------
+//	Check convergence of temperature
+//----------------------------------------------------------------------
+class TemperatureConvergenceCheck : public ConvergenceCheck<Real>
+{
+public:
+	explicit TemperatureConvergenceCheck(SPHBody &diffusion_body)
+		: ConvergenceCheck<Real>(diffusion_body, variable_name){};
+
+	bool reduce(size_t index_i, Real dt)
+	{
+		Real increment = (variable_[index_i] - variable_temp_[index_i]) /
+						 (upper_temperature - lower_temperature);
+		bool is_converged = ABS(increment) < 1.0e-3;
+		updateTemporary(index_i);
+		return is_converged;
+	};
+};
+//----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
 int main()
@@ -114,6 +132,8 @@ int main()
 	//----------------------------------------------------------------------
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<IsothermalBoundariesConstraints> setup_boundary_condition(isothermal_boundaries);
+	SimpleDynamics<SourceAssignment<Real>> thermal_source(diffusion_body, variable_name, heat_source);
+	ReduceDynamics<TemperatureConvergenceCheck> check_temperature_convergence(diffusion_body);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -145,10 +165,10 @@ int main()
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	int ite = sph_system.RestartStep();
-	Real T0 = 1;
+	Real T0 = 10.0;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
-	Real dt = T0 / 1000.0;
+	Real dt = 1.0 / 1000.0;
 	int restart_output_interval = 1000;
 
 	/** Output global basic parameters.*/
@@ -167,6 +187,7 @@ int main()
 		while (relaxation_time < Observe_time)
 		{
 
+			thermal_source.parallel_exec(dt);
 			implicit_heat_transfer_solver.parallel_exec(dt);
 
 			ite++;
@@ -176,6 +197,11 @@ int main()
 			if (ite % 100 == 0)
 			{
 				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
+				if (check_temperature_convergence.parallel_exec())
+				{
+					std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
+					exit(0);
+				}
 			}
 
 			if (ite % restart_output_interval == 0)

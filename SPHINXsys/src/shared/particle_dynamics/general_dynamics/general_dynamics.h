@@ -61,6 +61,29 @@ namespace SPH
 	};
 
 	/**
+	 * @class SourceAssignment
+	 * @brief set source effect to a discrete variable
+	 */
+	template <typename DataType>
+	class SourceAssignment : public LocalDynamics, public GeneralDataDelegateSimple
+	{
+	public:
+		SourceAssignment(SPHBody &sph_body, const std::string &variable_name, const DataType &source_strength)
+			: LocalDynamics(sph_body), GeneralDataDelegateSimple(sph_body),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name)),
+			  source_strength_(source_strength){};
+		virtual ~SourceAssignment(){};
+		void update(size_t index_i, Real dt)
+		{
+			variable_[index_i] += source_strength_ * dt;
+		};
+
+	protected:
+		StdLargeVec<DataType> &variable_;
+		DataType source_strength_;
+	};
+
+	/**
 	 * @class BaseTimeStepInitialization
 	 * @brief base class for time step initialization.
 	 */
@@ -321,5 +344,31 @@ namespace SPH
 
 		Real reduce(size_t index_i, Real dt = 0.0);
 	};
+
+	/**
+	 * @class ConvergenceCheck
+	 * @brief check whether a variable is converged
+	 */
+	template <typename DataType>
+	class ConvergenceCheck : public LocalDynamicsReduce<bool, ReduceAND>,
+							 public GeneralDataDelegateSimple
+	{
+	protected:
+		StdLargeVec<DataType> &variable_, variable_temp_;
+		void updateTemporary(size_t index_i) { variable_temp_[index_i] = variable_[index_i]; };
+
+	public:
+		ConvergenceCheck(SPHBody &sph_body, const std::string &variable_name)
+			: LocalDynamicsReduce<bool, ReduceAND>(sph_body, true),
+			  GeneralDataDelegateSimple(sph_body),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name))
+		{
+			particles_->registerVariable(variable_temp_, "Temporary" + variable_name,
+										 [&](size_t index_i)
+										 { return variable_[index_i]; });
+		};
+		virtual ~ConvergenceCheck(){};
+	};
+
 }
 #endif // GENERAL_DYNAMICS_H
