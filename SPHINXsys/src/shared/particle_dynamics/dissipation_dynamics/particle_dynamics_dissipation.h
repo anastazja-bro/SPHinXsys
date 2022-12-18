@@ -32,6 +32,7 @@
 #define PARTICLE_DYNAMICS_DISSIPATION_H
 
 #include "all_particle_dynamics.h"
+#include "solid_particles.h"
 
 namespace SPH
 {
@@ -162,6 +163,25 @@ namespace SPH
 		void interaction(size_t index_i, Real dt = 0.0);
 
 	protected:
+		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+	};
+
+	/**
+	 * @class DampingCoefficientEvolution
+	 * @brief Only works for scalar variable and coefficient. 
+	 * TODO: to be generalized for different data type
+	 */
+	class DampingCoefficientEvolution : public LocalDynamics, public DissipationDataInner
+	{
+	public:
+		DampingCoefficientEvolution(BaseInnerRelation &inner_relation, 
+		const std::string &variable_name, const std::string &coefficient_name);
+		virtual ~DampingCoefficientEvolution(){};
+		void interaction(size_t index_i, Real dt);
+
+	protected:
+		StdLargeVec<Real> &Vol_, &mass_;
+		StdLargeVec<Real> &variable_;
 		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
 	};
 
