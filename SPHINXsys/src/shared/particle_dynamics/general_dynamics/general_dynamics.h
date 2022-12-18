@@ -351,16 +351,29 @@ namespace SPH
 	 */
 	template <typename DataType>
 	class SteadySolutionCheck : public LocalDynamicsReduce<bool, ReduceAND>,
-							 public GeneralDataDelegateSimple
+								public GeneralDataDelegateSimple
 	{
 	protected:
+		DataType steady_reference_;
+		const Real criterion_ = 1.0e-6;
+
 		StdLargeVec<DataType> &variable_, variable_temp_;
-		void updateTemporary(size_t index_i) { variable_temp_[index_i] = variable_[index_i]; };
+
+		bool checkSteady(const Real &increment)
+		{
+			return increment * increment / steady_reference_ / steady_reference_ < criterion_;
+		};
+
+		template <typename IncrementDatatype>
+		bool checkSteady(const IncrementDatatype &increment)
+		{
+			return increment.squaredNorm() / steady_reference_.squaredNorm() < criterion_;
+		};
 
 	public:
-		SteadySolutionCheck(SPHBody &sph_body, const std::string &variable_name)
+		SteadySolutionCheck(SPHBody &sph_body, const std::string &variable_name, const DataType &steady_reference)
 			: LocalDynamicsReduce<bool, ReduceAND>(sph_body, true),
-			  GeneralDataDelegateSimple(sph_body),
+			  GeneralDataDelegateSimple(sph_body), steady_reference_(steady_reference),
 			  variable_(*particles_->getVariableByName<DataType>(variable_name))
 		{
 			particles_->registerVariable(variable_temp_, "Temporary" + variable_name,
@@ -368,6 +381,13 @@ namespace SPH
 										 { return variable_[index_i]; });
 		};
 		virtual ~SteadySolutionCheck(){};
+
+		bool reduce(size_t index_i, Real dt)
+		{
+			DataType increment = variable_[index_i] - variable_temp_[index_i];
+			variable_temp_[index_i] = variable_[index_i];
+			return checkSteady(increment);
+		};
 	};
 
 }

@@ -23,6 +23,7 @@ Real diffusion_coff = 1;
 std::string variable_name = "Phi";
 Real lower_temperature = 300.0;
 Real upper_temperature = 350.0;
+Real stead_reference = upper_temperature - lower_temperature;
 Real heat_source = 100.0;
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
@@ -74,24 +75,6 @@ public:
 	}
 };
 //----------------------------------------------------------------------
-//	Check convergence of temperature
-//----------------------------------------------------------------------
-class SteadyTemperatureCheck : public SteadySolutionCheck<Real>
-{
-public:
-	explicit SteadyTemperatureCheck(SPHBody &diffusion_body)
-		: SteadySolutionCheck<Real>(diffusion_body, variable_name){};
-
-	bool reduce(size_t index_i, Real dt)
-	{
-		Real increment = (variable_[index_i] - variable_temp_[index_i]) /
-						 (upper_temperature - lower_temperature);
-		bool is_converged = ABS(increment) < 1.0e-3;
-		updateTemporary(index_i);
-		return is_converged;
-	};
-};
-//----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
 int main()
@@ -133,7 +116,7 @@ int main()
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<IsothermalBoundariesConstraints> setup_boundary_condition(isothermal_boundaries);
 	SimpleDynamics<SourceAssignment<Real>> thermal_source(diffusion_body, variable_name, heat_source);
-	ReduceDynamics<SteadyTemperatureCheck> check_steady_temperature(diffusion_body);
+	ReduceDynamics<SteadySolutionCheck<Real>> check_steady_temperature(diffusion_body, variable_name, stead_reference);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
