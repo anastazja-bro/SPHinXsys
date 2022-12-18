@@ -389,6 +389,5 @@ namespace SPH
 			return checkSteady(increment);
 		};
 	};
-
 }
 #endif // GENERAL_DYNAMICS_H

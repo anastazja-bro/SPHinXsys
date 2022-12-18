@@ -16,6 +16,7 @@ BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //----------------------------------------------------------------------
 //	Global parameters for material properties.
 //----------------------------------------------------------------------
+std::string coefficient_name = "ThermalConductionRate";
 Real diffusion_coff = 1;
 //----------------------------------------------------------------------
 //	Global parameters for setting up variables.
@@ -61,9 +62,6 @@ public:
 //----------------------------------------------------------------------
 class IsothermalBoundariesConstraints : public ValueAssignment<Real>
 {
-protected:
-	StdLargeVec<Vecd> &pos_;
-
 public:
 	explicit IsothermalBoundariesConstraints(SolidBody &isothermal_boundaries)
 		: ValueAssignment<Real>(isothermal_boundaries, variable_name),
@@ -73,6 +71,26 @@ public:
 	{
 		variable_[index_i] = pos_[index_i][1] > 0.0 ? lower_temperature : upper_temperature;
 	}
+
+protected:
+	StdLargeVec<Vecd> &pos_;
+};
+//----------------------------------------------------------------------
+//	Application dependent initial condition.
+//----------------------------------------------------------------------
+class DiffusionCoefficientDistribution : public ValueAssignment<Real>
+{
+public:
+	explicit DiffusionCoefficientDistribution(SPHBody &diffusion_body)
+		: ValueAssignment<Real>(diffusion_body, coefficient_name),
+		  pos_(particles_->pos_){};
+	void update(size_t index_i, Real dt)
+	{
+		variable_[index_i] = pos_[index_i][1] < 0.5 * H ? 1.0 : 0.1;
+	};
+
+protected:
+	StdLargeVec<Vecd> &pos_;
 };
 //----------------------------------------------------------------------
 //	Main program starts here.
@@ -96,6 +114,10 @@ int main()
 	diffusion_body.addBodyState<Real>(body_temperature, variable_name);
 	diffusion_body.addBodyStateForRecording<Real>(variable_name);
 	diffusion_body.addBodyStateToRestart<Real>(variable_name);
+	StdLargeVec<Real> thermal_conduction_rate;
+	diffusion_body.addBodyState<Real>(thermal_conduction_rate, coefficient_name);
+	diffusion_body.addBodyStateForRecording<Real>(coefficient_name);
+	diffusion_body.addBodyStateToRestart<Real>(coefficient_name);
 
 	SolidBody isothermal_boundaries(sph_system, makeShared<IsothermalBoundaries>("IsoThermalBoundaries"));
 	isothermal_boundaries.defineParticlesAndMaterial<SolidParticles, Solid>();
@@ -115,6 +137,7 @@ int main()
 	//----------------------------------------------------------------------
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<IsothermalBoundariesConstraints> setup_boundary_condition(isothermal_boundaries);
+	SimpleDynamics<DiffusionCoefficientDistribution> setup_diffusion_coefficient(diffusion_body);
 	SimpleDynamics<SourceAssignment<Real>> thermal_source(diffusion_body, variable_name, heat_source);
 	ReduceDynamics<SteadySolutionCheck<Real>> check_steady_temperature(diffusion_body, variable_name, stead_reference);
 	//----------------------------------------------------------------------
@@ -125,8 +148,9 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingPairwiseWithWall<Real, DampingPairwiseInner>>
-		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, diffusion_coff);
+	InteractionSplit<DampingComplex<DampingPairwiseInnerVariableCoefficient<Real>,
+									DampingPairwiseFromWallVariableCoefficient<Real>>>
+		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -135,6 +159,7 @@ int main()
 	sph_system.initializeSystemConfigurations();
 	setup_diffusion_initial_condition.parallel_exec();
 	setup_boundary_condition.parallel_exec();
+	setup_diffusion_coefficient.parallel_exec();
 	//----------------------------------------------------------------------
 	//	Load restart file if necessary.
 	//----------------------------------------------------------------------
