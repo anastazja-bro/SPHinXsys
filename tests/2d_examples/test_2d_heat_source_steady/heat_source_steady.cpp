@@ -56,12 +56,15 @@ class DiffusionBodyInitialCondition : public ValueAssignment<Real>
 {
 public:
 	explicit DiffusionBodyInitialCondition(SPHBody &diffusion_body)
-		: ValueAssignment<Real>(diffusion_body, variable_name){};
-
+		: ValueAssignment<Real>(diffusion_body, variable_name),
+		  pos_(particles_->pos_){};
 	void update(size_t index_i, Real dt)
 	{
 		variable_[index_i] = 325.0 + 25.0 * (((double)rand() / (RAND_MAX)) - 0.5) * 2.0;
 	};
+
+protected:
+	StdLargeVec<Vecd> &pos_;
 };
 //----------------------------------------------------------------------
 //	Constraints for isothermal boundaries.
@@ -75,7 +78,7 @@ public:
 
 	void update(size_t index_i, Real dt)
 	{
-		variable_[index_i] = pos_[index_i][1] > 0.0 ? lower_temperature : upper_temperature;
+		variable_[index_i] = pos_[index_i][1] > 0.5 ? lower_temperature : upper_temperature;
 	}
 
 protected:
@@ -149,6 +152,7 @@ int main()
 	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
 	ReduceDynamics<SteadySolutionCheck<Real>> check_steady_solution(diffusion_body, variable_name, stead_reference);
+	ReduceDynamics<SteadySolutionCheck<Real>> check_steady_thermal_diffusion(diffusion_body, coefficient_name, diffusion_coff);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -157,9 +161,10 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingComplex<DampingPairwiseInnerVariableCoefficient<Real>,
-									DampingPairwiseFromWallVariableCoefficient<Real>>>
-		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
+	InteractionSplit<DampingPairwiseInnerVariableCoefficient<Real>>
+		implicit_heat_transfer_solver(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name);
+	InteractionSplit<DampingCoefficientEvolution>
+		damping_coefficient_evolution(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -203,8 +208,14 @@ int main()
 		Real relaxation_time = 0.0;
 		while (relaxation_time < Observe_time)
 		{
-			thermal_source.parallel_exec(dt);
-			implicit_heat_transfer_solver.parallel_exec(dt);
+			if (GlobalStaticVariables::physical_time_ < 0.005)
+			{
+				implicit_heat_transfer_solver.parallel_exec(dt);
+			}
+			else
+			{
+				damping_coefficient_evolution.parallel_exec(dt);
+			}
 
 			ite++;
 			relaxation_time += dt;
@@ -222,7 +233,7 @@ int main()
 		}
 
 		write_states.writeToFile(ite);
-		if (check_steady_solution.parallel_exec())
+		if (check_steady_thermal_diffusion.parallel_exec())
 		{
 			std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
 			return 0;
