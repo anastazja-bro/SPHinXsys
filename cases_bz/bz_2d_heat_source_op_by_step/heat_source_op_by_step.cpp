@@ -5,29 +5,25 @@
  */
 #include "sphinxsys.h"
 using namespace SPH;
-
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
 Real L = 1.0;
 Real H = 1.0;
 Real resolution_ref = H / 100.0;
-Real BW = resolution_ref * 4.0;
+Real BW = resolution_ref * 2.0;
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
 Real diffusion_coff = 1;
-Real bias_diffusion_coff = 0.0;
-Real alpha = Pi / 4.0;
-Vec2d bias_direction(cos(alpha), sin(alpha));
 std::array<std::string, 1> species_name_list{ "Phi" };
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
 //----------------------------------------------------------------------
 Real initial_temperature = 0.0;
-Real lower_temperature = 300.0;
-Real upper_temperature = 350.0;
+Real low_temperature = 300.0;
+Real high_temperature = 350.0;
 Real heat_source = 100.0;
 //----------------------------------------------------------------------
 //	Geometric shapes used in the system.
@@ -56,6 +52,17 @@ std::vector<Vecd> createBoundaryDomain()
 	return boundaryDomain;
 };
 
+std::vector<Vecd> high_temperature_region
+{
+	Vecd(0.45 * L, H), Vecd(0.45 * L, H + BW), Vecd(0.55 * L, H + BW),
+	Vecd(0.55 * L, H), Vecd(0.45 * L, H)
+};
+
+std::vector<Vecd> low_temperature_region
+{
+	Vecd(0.45 * L, 0.0), Vecd(0.55 * L, 0.0), Vecd(0.55 * L, -BW),
+	Vecd(0.45 * L, -BW), Vecd(0.45 * L, 0.0)
+};
 //----------------------------------------------------------------------
 //	Define SPH bodies. 
 //----------------------------------------------------------------------
@@ -78,6 +85,13 @@ public:
 	}
 };
 
+MultiPolygon createBoundaryConditionRegion()
+{
+	MultiPolygon multi_polygon;
+	multi_polygon.addAPolygon(high_temperature_region, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(low_temperature_region, ShapeBooleanOps::add);
+	return multi_polygon;
+}
 //----------------------------------------------------------------------
 //	Setup diffusion material properties. 
 //----------------------------------------------------------------------
@@ -87,7 +101,7 @@ public:
 	DiffusionBodyMaterial()
 		:DiffusionReaction<Solid>(species_name_list)
 	{
-		initializeAnDiffusion<LocalDirectionalDiffusion>("Phi", "Phi", diffusion_coff, bias_diffusion_coff, bias_direction);
+		initializeAnDiffusion<LocalIsotropicDiffusion>("Phi", "Phi", diffusion_coff);
 	}
 };
 
@@ -118,7 +132,6 @@ class ThermalDiffusivityRandomInitialization
 protected:
 	void update(size_t index_i, Real dt)
 	{
-		/** setup the initial random thermal diffusivity and the averaged initial K is 1. */
 		variable_[index_i] = 0.5 + (double)rand() / RAND_MAX;
 	};
 public:
@@ -134,13 +147,15 @@ protected:
 	void update(size_t index_i, Real dt)
 	{
 		species_n_[phi_][index_i] = -0.0;
-		if (pos_[index_i][1] < 0 && pos_[index_i][0] > 0.45*L && pos_[index_i][0] < 0.55*L)
+		if (pos_[index_i][1] < 0 && pos_[index_i][0] > 
+			0.45*L && pos_[index_i][0] < 0.55*L)
 		{
-			species_n_[phi_][index_i] = lower_temperature;
+			species_n_[phi_][index_i] = low_temperature;
 		}
-		if (pos_[index_i][1] > 1 && pos_[index_i][0] > 0.45*L && pos_[index_i][0] < 0.55*L)
+		if (pos_[index_i][1] > 1 && pos_[index_i][0] > 
+			0.45*L && pos_[index_i][0] < 0.55*L)
 		{
-			species_n_[phi_][index_i] = upper_temperature;
+			species_n_[phi_][index_i] = high_temperature;
 		}
 	}
 public:
@@ -162,7 +177,8 @@ protected:
 	void update(size_t index_i, Real learning_rate)
 	{
 		species_recovery_[index_i] = species_n_[phi_][index_i];
-		species_modified_[index_i] = species_n_[phi_][index_i] - learning_rate * (upper_temperature - lower_temperature);
+		species_modified_[index_i] = species_n_[phi_][index_i] - 
+			learning_rate * (low_temperature - high_temperature);
 	}                                     
 public:
 	ImposeObjectiveFunction(SolidBody &diffusion_body) :
@@ -211,6 +227,8 @@ int main()
 	SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
 	wall_boundary.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles, Solid>, DiffusionBodyMaterial>();
 	wall_boundary.generateParticles<ParticleGeneratorLattice>();
+
+	BodyRegionByParticle BC_region(wall_boundary, makeShared<MultiPolygonShape>(createBoundaryConditionRegion(), "BC_region"));
 	//----------------------------------------------------------------------
 	//	Define body relation map.
 	//	The contact map gives the topological connections between the bodies.
@@ -226,7 +244,6 @@ int main()
 	SimpleDynamics<WallBoundaryInitialCondition> setup_boundary_condition(wall_boundary);
 	SimpleDynamics<ThermalDiffusivityRandomInitialization> 
 		thermal_diffusivity_random_initialization(diffusion_body, "ThermalDiffusivity");
-	/** Time step size calculation. */
 	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.

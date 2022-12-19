@@ -1,6 +1,6 @@
 /**
- * @file 	diffusion_op.cpp
- * @brief 	This is the first test to validate the optimization.
+ * @file 	diffusion_heat_flux.cpp
+ * @brief 	This is the second test to validate the optimization.
  * @author 	Bo Zhang and Xiangyu Hu
  */
 #include "sphinxsys.h" //SPHinXsys Library
@@ -11,15 +11,12 @@ using namespace SPH; //Namespace cite here
 Real L = 1.0; 	
 Real H = 1.0;
 Real resolution_ref = H / 100.0;
-Real BW = resolution_ref * 1.0;
+Real BW = resolution_ref * 2.0;
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //----------------------------------------------------------------------
 //	Basic parameters for material properties.
 //----------------------------------------------------------------------
 Real diffusion_coff = 1;
-Real bias_diffusion_coff = 0.0;
-Real alpha = Pi / 4.0;
-Vec2d bias_direction(cos(alpha), sin(alpha));
 std::array<std::string, 1> species_name_list{ "Phi" };
 //----------------------------------------------------------------------
 //	Initial and boundary conditions.
@@ -55,18 +52,30 @@ std::vector<Vecd> createBoundaryDomain()
 	return boundaryDomain;
 }
 
-/** The domain used for objective function. */
-std::vector<Vecd> heat_flux_boundary_domain{
-	Vecd(0.45*L, 0), Vecd(0.45*L, resolution_ref), Vecd(0.55*L, resolution_ref),
-	Vecd(0.55*L, 0), Vecd(0.45*L, 0) };
+std::vector<Vecd> left_temperature_region
+{
+	Vecd(0.3 * L, 0), Vecd(0.3 * L, BW), Vecd(0.4 * L, BW),
+	Vecd(0.4 * L, 0), Vecd(0.3 * L, 0)
+};
 
+std::vector<Vecd> right_temperature_region
+{
+	Vecd(0.6 * L, 0), Vecd(0.6 * L, BW), Vecd(0.7 * L, BW),
+	Vecd(0.7 * L, 0), Vecd(0.6 * L, 0)
+};
+
+std::vector<Vecd> heat_flux_region
+{
+	Vecd(0.45 * L, 0), Vecd(0.45 * L, resolution_ref), Vecd(0.55 * L, resolution_ref),
+	Vecd(0.55 * L, 0), Vecd(0.45 * L, 0)
+};
 //----------------------------------------------------------------------
 //	Define SPH bodies. 
 //----------------------------------------------------------------------
 class DiffusionBody : public MultiPolygonShape
 {
 public:
-	explicit DiffusionBody(const std::string &shape_name) : MultiPolygonShape(shape_name)
+	explicit DiffusionBody(const std::string& shape_name) : MultiPolygonShape(shape_name)
 	{
 		multi_polygon_.addAPolygon(createThermalDomain(), ShapeBooleanOps::add);
 	}
@@ -75,20 +84,28 @@ public:
 class WallBoundary : public MultiPolygonShape
 {
 public:
-	explicit WallBoundary(const std::string &shape_name) : MultiPolygonShape(shape_name)
+	explicit WallBoundary(const std::string& shape_name) : MultiPolygonShape(shape_name)
 	{
 		multi_polygon_.addAPolygon(createBoundaryDomain(), ShapeBooleanOps::add);
 		multi_polygon_.addAPolygon(createThermalDomain(), ShapeBooleanOps::sub);
 	}
 };
 
-MultiPolygon createHeatFluxSurfaceDomain()
+MultiPolygon createBoundayConditionRegion()
 {
 	MultiPolygon multi_polygon;
-	multi_polygon.addAPolygon(heat_flux_boundary_domain, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(left_temperature_region, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(right_temperature_region, ShapeBooleanOps::add);
+	multi_polygon.addAPolygon(heat_flux_region, ShapeBooleanOps::add);
 	return multi_polygon;
 }
 
+MultiPolygon createHeatFluxRegion()
+{
+	MultiPolygon multi_polygon;
+	multi_polygon.addAPolygon(heat_flux_region, ShapeBooleanOps::add);
+	return multi_polygon;
+}
 //----------------------------------------------------------------------
 //	Setup diffusion material properties. 
 //----------------------------------------------------------------------
@@ -99,7 +116,7 @@ public:
 	DiffusionBodyMaterial()
 		:DiffusionReaction<Solid>(species_name_list)
 	{
-		initializeAnDiffusion<LocalDirectionalDiffusion>("Phi", "Phi", diffusion_coff, bias_diffusion_coff, bias_direction);
+		initializeAnDiffusion<LocalDirectionalDiffusion>("Phi", "Phi", diffusion_coff);
 	}
 };
 
@@ -113,7 +130,6 @@ protected:
 	size_t phi_;
 	void update(size_t index_i, Real dt)
 	{
-		/** setup the initial random temperature, and the value is higher than averaged temperature. */
 		species_n_[phi_][index_i] = 400 + 50 * (double)rand() / RAND_MAX;
 	};
 public:
@@ -133,18 +149,21 @@ protected:
 	void update(size_t index_i, Real dt)
 	{
 		species_n_[phi_][index_i] = -0.0;
-		if (pos_[index_i][1] > H && pos_[index_i][0] > 0.3*L && pos_[index_i][0] < 0.4*L)
+		if (pos_[index_i][1] > H && pos_[index_i][0] > 
+			0.3*L && pos_[index_i][0] < 0.4*L)
 		{
 			species_n_[phi_][index_i] = left_temperature;
 		}
-		if (pos_[index_i][1] > H && pos_[index_i][0] > 0.6*L && pos_[index_i][0] < 0.7*L)
+		if (pos_[index_i][1] > H && pos_[index_i][0] > 
+			0.6*L && pos_[index_i][0] < 0.7*L)
 		{
 			species_n_[phi_][index_i] = right_temperature;
 		}
-		if (pos_[index_i][1] < 0 && pos_[index_i][0] > 0.45*L && pos_[index_i][0] < 0.55*L)
+		if (pos_[index_i][1] < 0 && pos_[index_i][0] > 
+			0.45*L && pos_[index_i][0] < 0.55*L)
 		{
 			heat_flux_[index_i] = heat_flux;
-			species_n_[phi_][index_i] = 400 + 50 * (double)rand() / RAND_MAX;
+			species_n_[phi_][index_i] = 400;
 		}
 	}
 public:
@@ -160,7 +179,7 @@ public:
 //----------------------------------------------------------------------
 class DiffusionBodyRelaxation
 	:public RelaxationOfAllDiffusionSpeciesRK2<
-	 RelaxationOfAllDiffusionSpeciesComplex<SolidParticles, Solid, SolidParticles, Solid>>
+	RelaxationOfAllDiffusionSpeciesWithBC<SolidParticles, Solid, SolidParticles, Solid>>
 {
 public:
 	DiffusionBodyRelaxation(ComplexRelation& body_complex_relation)
@@ -182,15 +201,17 @@ public:
 
 		for (size_t i = 0; i < number_of_observation_points; ++i)
 		{
-			Vec2d point_coordinate(0.5*L, range_of_measure * Real(i) / Real(number_of_observation_points - 1) + start_of_measure);
+			Vec2d point_coordinate(0.5*L, range_of_measure * Real(i) / 
+				Real(number_of_observation_points - 1) + start_of_measure);
 			positions_.push_back(point_coordinate);
 		}
 	}
 };
+
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
-int main()
+int main(int ac, char* av[])
 {
 	//----------------------------------------------------------------------
 	//	Build up the environment of a SPHSystem.
@@ -209,7 +230,8 @@ int main()
 	wall_boundary.defineParticlesAndMaterial<DiffusionReactionParticles<SolidParticles, Solid>, DiffusionBodyMaterial>();
 	wall_boundary.generateParticles<ParticleGeneratorLattice>();
 
-	BodyRegionByParticle heat_flux_shape(diffusion_body, makeShared<MultiPolygonShape>(createHeatFluxSurfaceDomain(), "Heat_flux_surface"));
+	BodyRegionByParticle BC_region(wall_boundary, makeShared<MultiPolygonShape>(createBoundayConditionRegion(), "BC_region"));
+	BodyRegionByParticle heat_flux_region(wall_boundary, makeShared<MultiPolygonShape>(createHeatFluxRegion(), "heat_flux_region"));
 	//----------------------------  ------------------------------------------
 	//	Particle and body creation of temperature observers.
 	//----------------------------------------------------------------------
@@ -220,9 +242,7 @@ int main()
 	//	The contact map gives the topological connections between the bodies.
 	//	Basically the range of bodies to build neighbor particle lists.
 	//----------------------------------------------------------------------
-	InnerRelation diffusion_body_inner(diffusion_body);
-	InnerRelation wall_boundary_inner(wall_boundary);
-	ComplexRelation diffusion_body_complex(diffusion_body, { &wall_boundary });
+	ComplexRelation diffusion_body_complex(diffusion_body, { &BC_region });
 	ComplexRelation wall_boundary_complex(wall_boundary, { &diffusion_body });
 	ContactRelation temperature_observer_contact(temperature_observer, { &diffusion_body });
 	//----------------------------------------------------------------------
@@ -231,19 +251,6 @@ int main()
 	//----------------------------------------------------------------------
 	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<WallBoundaryInitialCondition> setup_boundary_condition(wall_boundary);
-	InteractionDynamics<UpdateUnitNormalVector<SolidParticles, Solid, SolidParticles, Solid>>
-		update_diffusion_body_normal_vector(diffusion_body_complex);
-	InteractionDynamics<UpdateUnitNormalVector<SolidParticles, Solid, SolidParticles, Solid>>
-		update_wall_boundary_normal_vector(wall_boundary_complex);
-	InteractionDynamics<UpdateNormalDistance<SolidParticles, Solid>>
-		update_normal_distance_domain(diffusion_body_inner);
-	InteractionDynamics<UpdateNormalDistance<SolidParticles, Solid>>
-		update_normal_distance_wall(wall_boundary_inner);
-	InteractionSplit<TemperatureSplittingByBCWithBoundary<SolidParticles, Solid, SolidParticles, Solid, Real>>
-		temperature_splitting_bc_complex(wall_boundary_complex, "Phi");
-	InteractionSplit<UpdateTemperatureBCResidual<TemperatureSplittingByBCWithBoundary<SolidParticles, Solid, 
-		SolidParticles, Solid, Real>, ComplexRelation, Real>>
-		update_temperature_bc_residual(wall_boundary_complex, "Phi");
 	GetDiffusionTimeStepSize<SolidParticles, Solid> get_time_step_size(diffusion_body);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -251,22 +258,39 @@ int main()
 	BodyStatesRecordingToVtp write_states(io_environment, sph_system.real_bodies_);
 	RestartIO	restart_io(io_environment, sph_system.real_bodies_);
 	ObservedQuantityRecording<Real>
-		write_solid_temperature("ThermalDiffusivity", io_environment, temperature_observer_contact);
-
+		write_solid_temperature("Phi", io_environment, temperature_observer_contact);
 	/************************************************************************/
-	/*            splitting thermal diffusivity optimization                */
+	/* Splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	DiffusionBodyRelaxation thermal_relaxation_with_boundary(diffusion_body_complex);
+	DiffusionBodyRelaxation temperature_relaxation(diffusion_body_complex);
+	InteractionDynamics<UpdateUnitNormalVector<SolidParticles, Solid, SolidParticles, Solid>>
+		update_diffusion_body_normal_vector(diffusion_body_complex);
+	InteractionDynamics<UpdateUnitNormalVector<SolidParticles, Solid, SolidParticles, Solid>>
+		update_wall_boundary_normal_vector(wall_boundary_complex);
+	InteractionSplit<TemperatureSplittingByBCWithBoundary<SolidParticles, 
+		Solid, SolidParticles, Solid, Real>>
+		temperature_splitting_bc(wall_boundary_complex, "Phi");
+	InteractionSplit<UpdateTemperatureBCResidual<TemperatureSplittingByBCWithBoundary<SolidParticles, 
+		Solid, SolidParticles, Solid, Real>, ComplexRelation, Real>>
+		update_temperature_bc_residual(wall_boundary_complex, "Phi");
+	InteractionSplit<DampingBySplittingWithWall<Real, DampingBySplittingInner>>
+		temperature_damping(diffusion_body_complex, "Phi", diffusion_coff);
 	InteractionSplit<TemperatureSplittingByPDEWithBoundary<SolidParticles, Solid,
-		SolidParticles, Solid, Real>> temperature_splitting_pde_complex(diffusion_body_complex, "Phi");
-	InteractionSplit<UpdateTemperaturePDEResidual<TemperatureSplittingByPDEWithBoundary<SolidParticles, Solid,
-		SolidParticles, Solid, Real>, ComplexRelation, Real>> update_temperature_pde_residual(diffusion_body_complex, "Phi");
+		SolidParticles, Solid, Real>> 
+		temperature_splitting_pde(diffusion_body_complex, "Phi");
+	InteractionSplit<UpdateTemperaturePDEResidual<TemperatureSplittingByPDEWithBoundary<SolidParticles, 
+		Solid, SolidParticles, Solid, Real>, ComplexRelation, Real>> 
+		update_temperature_pde_residual(diffusion_body_complex, "Phi");
 	ReduceAverage<ComputeAveragedErrorOrPositiveParameter<SolidParticles, Solid>>
-		calculate_temperature_local_residual(diffusion_body, "residual_T_local");
+		calculate_averaged_local_residual(diffusion_body, "residual_T_local");
 	ReduceAverage<ComputeAveragedErrorOrPositiveParameter<SolidParticles, Solid>>
-		calculate_temperature_global_residual(diffusion_body, "residual_T_global");
+		calculate_averaged_global_residual(diffusion_body, "residual_T_global");
+	ReduceDynamics<ComputeMaximumError<SolidParticles, Solid>>
+		calculate_maximum_local_residual(diffusion_body, "residual_T_local");
+	ReduceDynamics<ComputeMaximumError<SolidParticles, Solid>>
+		calculate_maximum_global_residual(diffusion_body, "residual_T_global");
 	ReduceAverage<DiffusionReactionSpeciesSummation<SolidParticles, Solid>, BodyRegionByParticle>
-		calculate_averaged_temperature(heat_flux_shape, "Phi");
+		calculate_averaged_temperature(heat_flux_region, "Phi");
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary. 
@@ -277,8 +301,6 @@ int main()
 	setup_boundary_condition.parallel_exec();
 	update_diffusion_body_normal_vector.parallel_exec();
 	update_wall_boundary_normal_vector.parallel_exec();
-	update_normal_distance_domain.parallel_exec();
-	update_normal_distance_wall.parallel_exec();
 	//----------------------------------------------------------------------
 	//	Load restart file if necessary.
 	//----------------------------------------------------------------------
@@ -292,18 +314,13 @@ int main()
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	int ite = sph_system.RestartStep();
-	int ite_splitting = 0;
-	Real T0 = 2.0;
+	Real T0 = 100;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
 	int restart_output_interval = 1000;
-	Vecd averaged_residual_T_last(0.0, 0.0);
-	Vecd averaged_residual_T_current(0.0, 0.0);
+	Vecd averaged_residual_T(0.0, 0.0);
+	Vecd maximum_residual_T(0.0, 0.0);
 	Real dt = 0.0;
-
-	/** Output global basic parameters.*/
-	write_solid_temperature.writeToFile(ite);
-	write_states.writeToFile(ite);
 	//----------------------------------------------------------------------
 	//	Statistics for CPU time
 	//----------------------------------------------------------------------
@@ -312,50 +329,48 @@ int main()
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
-	std::string filefullpath_error_PDE = io_environment.output_folder_ + "/" + "error_PDE.dat";
-	std::ofstream out_file_error_PDE(filefullpath_error_PDE.c_str(), std::ios::app);
-	std::string filefullpath_observed_temperature = io_environment.output_folder_ + "/" + "observed_temperature.dat";
-	std::ofstream out_file_observed_temperature(filefullpath_observed_temperature.c_str(), std::ios::app);
+	std::string filefullpath_PDE_error = io_environment.output_folder_ + "/" + "PDE_residual.dat";
+	std::ofstream out_file_PDE_error(filefullpath_PDE_error.c_str(), std::ios::app);
+	std::string filefullpath_averaged_temperature = io_environment.output_folder_ + "/" + "averaged_temperature.dat";
+	std::ofstream out_file_averaged_temperature(filefullpath_averaged_temperature.c_str(), std::ios::app);
 
-	while (GlobalStaticVariables::physical_time_ < End_Time)
+	while (maximum_residual_T[1] > 1e-3 * 50)
 	{
-		Real relaxation_time = 0.0;
-		while (relaxation_time < Observe_time)
+		dt = get_time_step_size.parallel_exec();
+		if (ite % 500 == 0)
 		{
-			if (ite % 200 == 0)
-			{
-				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
-				averaged_residual_T_current[0] = calculate_temperature_local_residual.parallel_exec(dt);
-				averaged_residual_T_current[1] = calculate_temperature_global_residual.parallel_exec(dt);
-				out_file_error_PDE << std::fixed << std::setprecision(9) << ite << "   " << averaged_residual_T_current[1] << "\n";
-				out_file_observed_temperature << std::fixed << std::setprecision(9) << ite << "   " << calculate_averaged_temperature.parallel_exec() << "\n";
-			}
+			write_states.writeToFile(ite);
+			write_solid_temperature.writeToFile(ite);
+			std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
+			out_file_PDE_error << std::fixed << std::setprecision(9) << ite << "residual" << averaged_residual_T[1] << "\n";
+			out_file_averaged_temperature << std::fixed << std::setprecision(9) << ite << "residual" << calculate_averaged_temperature.parallel_exec() << "\n";
+		}
 
-			dt = get_time_step_size.parallel_exec();
-			temperature_splitting_bc_complex.parallel_exec(dt);
-			update_temperature_bc_residual.parallel_exec(dt);
-			temperature_splitting_pde_complex.parallel_exec(dt);
-			update_temperature_pde_residual.parallel_exec(dt);
-			ite++; relaxation_time += dt; GlobalStaticVariables::physical_time_ += dt;
+		temperature_relaxation.parallel_exec(dt);
 
-			if (ite % 500 == 0)
-			{
-				write_states.writeToFile(ite);
-				write_solid_temperature.writeToFile(ite);
-			}
+		temperature_splitting_bc.parallel_exec(dt);
+		//temperature_splitting_pde.parallel_exec(dt);
+		//temperature_damping.parallel_exec(dt);
 
-			if (ite % restart_output_interval == 0)
-			{
-				restart_io.writeToFile(ite);
-			}
+		averaged_residual_T[0] = calculate_averaged_local_residual.parallel_exec(dt);
+		maximum_residual_T[0] = calculate_maximum_local_residual.parallel_exec(dt);
+		update_temperature_pde_residual.parallel_exec(dt);
+		maximum_residual_T[1] = calculate_maximum_global_residual.parallel_exec(dt);
+
+		ite++; GlobalStaticVariables::physical_time_ += dt;
+
+		if (ite % restart_output_interval == 0)
+		{
+			restart_io.writeToFile(ite);
 		}
 	}
-	out_file_error_PDE.close();
-	out_file_observed_temperature.close();
+	out_file_PDE_error.close();
+	out_file_averaged_temperature.close();
 
 	tick_count t4 = tick_count::now();
 	tick_count::interval_t tt;
 	tt = t4 - t1;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
+	std::cout << "Total physical time for computation: " << GlobalStaticVariables::physical_time_ << " seconds." << std::endl;
 	return 0;
 }

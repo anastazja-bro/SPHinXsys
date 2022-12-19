@@ -60,7 +60,8 @@ namespace SPH
 		  DiffusionReactionInnerData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(inner_relation),
 		  diffusion_reaction_material_(this->particles_->diffusion_reaction_material_),
 		  species_n_(this->particles_->species_n_),
-		  diffusion_dt_(this->particles_->diffusion_dt_)
+		  diffusion_dt_(this->particles_->diffusion_dt_),
+		  Vol_(this->particles_->Vol_), heat_source_(this->particles_->heat_source_)
 	{
 		species_diffusion_ = this->particles_->diffusion_reaction_material_.SpeciesDiffusion();
 	}
@@ -95,6 +96,7 @@ namespace SPH
 		for (size_t m = 0; m < species_diffusion_.size(); ++m)
 		{
 			size_t k = species_diffusion_[m]->diffusion_species_index_;
+			diffusion_dt_[m][particle_i] += heat_source_[particle_i];
 			species_n_[k][particle_i] += dt * diffusion_dt_[m][particle_i];
 		}
 	}
@@ -185,6 +187,91 @@ namespace SPH
 				const Vecd &grad_ijV_j = particles->getKernelGradient(index_i, index_j, dW_ijV_j_, e_ij);
 				Real area_ij = 2.0 * grad_ijV_j.dot(e_ij) / r_ij_;
 				getDiffusionChangeRateContact(index_i, index_j, e_ij, area_ij, species_n_k);
+			}
+		}
+	}
+	//=================================================================================================//
+	template <class BaseParticlesType, class BaseMaterialType,
+		      class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES>
+	RelaxationOfAllDiffusionSpeciesWithBC<BaseParticlesType, BaseMaterialType,
+		                                  ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>::
+		RelaxationOfAllDiffusionSpeciesWithBC(ComplexRelation &complex_relation)
+		: RelaxationOfAllDiffusionSpeciesComplex<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, 
+			                                   ContactBaseMaterialType, NUM_SPECIES>(complex_relation), 
+	   	  n_(this->particles_->normal_vector_), species_n_(this->particles_->species_n_),
+		  diffusion_dt_(this->particles_->diffusion_dt_)
+	{
+		species_diffusion_ = this->particles_->diffusion_reaction_material_.SpeciesDiffusion();
+		for (size_t k = 0; k != this->contact_particles_.size(); ++k)
+		{
+			contact_n_.push_back(&this->contact_particles_[k]->n_);
+			contact_heat_flux_.push_back(&(this->contact_particles_[k]->heat_flux_));
+			contact_species_n_.push_back(&(this->contact_particles_[k])->species_n_);
+		}
+	}
+	//=================================================================================================//
+	template <class BaseParticlesType, class BaseMaterialType,
+	          class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES>
+	void RelaxationOfAllDiffusionSpeciesWithBC<BaseParticlesType, BaseMaterialType,
+		                                       ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>::
+		getDiffusionChangeRateWithDirichlet(size_t particle_i, size_t particle_j, Vecd& e_ij,
+			Real surface_area_ij, const StdVec<StdLargeVec<Real>>& species_n_k)
+	{
+		for (size_t m = 0; m < species_diffusion_.size(); ++m)
+		{
+			Real diff_coff_ij = species_diffusion_[m]->getDiffusionCoffWithBoundary(particle_i);
+			size_t l = species_diffusion_[m]->gradient_species_index_;
+			if (species_n_k[l][particle_j] > 0.0)
+			{
+				Real phi_ij = species_n_[l][particle_i] - species_n_k[l][particle_j];
+				diffusion_dt_[m][particle_i] += diff_coff_ij * phi_ij * surface_area_ij;
+			}
+		}
+	}
+	//=================================================================================================//
+	template <class BaseParticlesType, class BaseMaterialType,
+		      class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES>
+	void RelaxationOfAllDiffusionSpeciesWithBC<BaseParticlesType, BaseMaterialType,
+		                                       ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>::
+		getDiffusionChangeRateWithNeumann(size_t particle_i, size_t particle_j, Real surface_area_ij_Neumann, 
+			                              StdLargeVec<Real>& heat_flux_k)
+	{
+		for (size_t m = 0; m < species_diffusion_.size(); ++m)
+		{
+			diffusion_dt_[m][particle_i] += surface_area_ij_Neumann * heat_flux_k[particle_j];
+		}
+	}
+	//=================================================================================================//
+	template <class BaseParticlesType, class BaseMaterialType,
+		      class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES>
+	void RelaxationOfAllDiffusionSpeciesWithBC<BaseParticlesType, BaseMaterialType,
+		                                       ContactBaseParticlesType, ContactBaseMaterialType, NUM_SPECIES>::
+		interaction(size_t index_i, Real dt)
+	{
+		RelaxationOfAllDiffusionSpeciesInner<BaseParticlesType, BaseMaterialType>::interaction(index_i, dt);
+		DiffusionReactionParticles<BaseParticlesType, BaseMaterialType, NUM_SPECIES>* particles = this->particles_;
+
+		for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
+		{
+			StdVec<StdLargeVec<Real>>& species_n_k = *(contact_species_n_[k]);
+			StdLargeVec<Real>& heat_flux_ = *(contact_heat_flux_[k]);
+			StdLargeVec<Vecd>& n_k = *(contact_n_[k]);
+
+			Neighborhood& contact_neighborhood = (*this->contact_configuration_[k])[index_i];
+			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+			{
+				size_t index_j = contact_neighborhood.j_[n];
+				Real r_ij_ = contact_neighborhood.r_ij_[n];
+				Real dW_ijV_j_ = contact_neighborhood.dW_ijV_j_[n];
+				Vecd& e_ij = contact_neighborhood.e_ij_[n];
+
+				const Vecd& grad_ijV_j_ = particles->getKernelGradient(index_i, index_j, dW_ijV_j_, e_ij);
+				Real area_ij = 2.0 * grad_ijV_j_.dot(e_ij) / r_ij_;
+				getDiffusionChangeRateWithDirichlet(index_i, index_j, e_ij, area_ij, species_n_k);
+
+				Vecd n_ij = n_[index_i] - n_k[index_j];
+				Real area_ij_Neumann = grad_ijV_j_.dot(n_ij);
+				getDiffusionChangeRateWithNeumann(index_i, index_j, area_ij_Neumann, heat_flux_);
 			}
 		}
 	}

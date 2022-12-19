@@ -50,6 +50,7 @@ namespace SPH
 	protected:
 		virtual ErrorAndParameters<VariableType> computeErrorAndParameters(size_t index_i, Real dt = 0.0);
 		virtual void updateStatesByError(size_t index_i, Real dt, const ErrorAndParameters<VariableType>& error_and_parameters);
+		virtual void updateWithSourceTerm(size_t index_i, Real dt) { this->variable_[index_i] += this->heat_source_[index_i] * dt; }
 		virtual void interaction(size_t index_i, Real dt = 0.0) override;
 	};
 
@@ -69,15 +70,16 @@ namespace SPH
 		virtual ~TemperatureSplittingByPDEWithBoundary() {};
 
 	protected:
-		StdVec<StdLargeVec<Vecd>*> boundary_normal_vector_;
-		StdVec<StdLargeVec<Real>*> boundary_heat_flux_, boundary_normal_distance_;
 		StdVec<StdLargeVec<VariableType>*> boundary_variable_;
+		StdVec<StdLargeVec<Real>*> boundary_normal_distance_;
+		StdVec<StdLargeVec<Vecd>*> boundary_normal_vector_;
 		virtual ErrorAndParameters<VariableType> computeErrorAndParameters(size_t index_i, Real dt = 0.0) override;
+		virtual void updateStatesByError(size_t index_i, Real dt, const ErrorAndParameters<VariableType>& error_and_parameters) override;
 	};
 
 	/**
 	 * @class UpdateTemperaturePDEResidual
-	 * @brief Update the global residual from temperature after one splitting loop finished. 
+	 * @brief Update the global residual from temperature after one splitting loop finished.
 	 */
 	template <typename TemperatureSplittingType, typename BaseBodyRelationType, typename VariableType>
 	class UpdateTemperaturePDEResidual : public TemperatureSplittingType

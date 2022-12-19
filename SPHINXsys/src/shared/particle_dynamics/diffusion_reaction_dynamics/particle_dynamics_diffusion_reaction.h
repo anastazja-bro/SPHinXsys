@@ -106,6 +106,8 @@ namespace SPH
 		StdVec<StdLargeVec<Real>> &species_n_;
 		StdVec<StdLargeVec<Real>> &diffusion_dt_;
 
+		StdLargeVec<Real> &Vol_, &heat_source_;
+
 		void initializeDiffusionChangeRate(size_t particle_i);
 		void getDiffusionChangeRate(size_t particle_i, size_t particle_j, Vecd &e_ij, Real surface_area_ij);
 		virtual void updateSpeciesDiffusion(size_t particle_i, Real dt);
@@ -150,6 +152,38 @@ namespace SPH
 		void interaction(size_t index_i, Real dt = 0.0);
 	};
 
+	/**
+	 * @class RelaxationOfAllDiffusionSpeciesWithBC
+	 * Contact diffusion relaxation with Dirichlet/Neumann BCs.
+	 */
+	template<class BaseParticlesType, class BaseMaterialType,
+		     class ContactBaseParticlesType, class ContactBaseMaterialType, int NUM_SPECIES = 1>
+	class RelaxationOfAllDiffusionSpeciesWithBC
+		: public RelaxationOfAllDiffusionSpeciesComplex<BaseParticlesType, BaseMaterialType, ContactBaseParticlesType, 
+		                                                ContactBaseMaterialType, NUM_SPECIES>
+	{
+		StdLargeVec<Vecd>& n_;
+		StdVec<BaseDiffusion*> species_diffusion_;
+		StdVec<StdLargeVec<Real>>& species_n_;
+		StdVec<StdLargeVec<Real>>& diffusion_dt_;
+		StdVec<StdLargeVec<Real>*> contact_Vol_;
+		StdVec<StdLargeVec<Real>*> contact_heat_flux_;
+		StdVec<StdLargeVec<Vecd>*> contact_n_;
+		StdVec<StdVec<StdLargeVec<Real>>*> contact_species_n_;
+
+	protected:
+		void getDiffusionChangeRateWithDirichlet(size_t particle_i, size_t particle_j, Vecd& e_ij,
+			Real surface_area_ij, const StdVec<StdLargeVec<Real>>& species_n_k);
+		void getDiffusionChangeRateWithNeumann(size_t particle_i, size_t particle_j,
+			Real surface_area_ij_Neumann, StdLargeVec<Real>& heat_flux_k);
+
+	public:
+		typedef ComplexRelation BodyRelationType;
+		explicit RelaxationOfAllDiffusionSpeciesWithBC(ComplexRelation& complex_relation);
+		virtual ~RelaxationOfAllDiffusionSpeciesWithBC() {};
+		void interaction(size_t index_i, Real dt = 0.0);
+	};
+		
 	/**
 	 * @class InitializationRK
 	 * @brief initialization of a runge-kutta integration scheme

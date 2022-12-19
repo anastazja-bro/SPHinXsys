@@ -90,6 +90,34 @@ namespace SPH
 	};
 
 	/**
+	 * @class LocalIsotropicDiffusion
+	 * @brief diffusion coefficient is locally different
+	 */
+	class LocalIsotropicDiffusion : public IsotropicDiffusion
+	{
+	protected:
+		StdLargeVec<Real> local_thermal_conductivity_;
+		void initializeThermalConductivity();
+
+	public:
+		LocalIsotropicDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
+			                   Real diff_cf = 1.0)
+			: IsotropicDiffusion(diffusion_species_index, gradient_species_index, diff_cf)
+		{
+			material_type_name_ = "LocalIstropicDiffusion";
+		};
+		virtual ~LocalIsotropicDiffusion() {};
+
+		virtual Real getReferenceDiffusivity() override { return diff_cf_; };
+		virtual Real getDiffusionCoffWithBoundary(size_t particle_i) override { return local_thermal_conductivity_[particle_i]; };
+		virtual Real getInterParticleDiffusionCoff(size_t particel_i, size_t particle_j, Vecd& direction_from_j_to_i) override
+		{
+			return 0.5 * (local_thermal_conductivity_[particel_i] + local_thermal_conductivity_[particle_j]);
+		};
+		virtual void assignBaseParticles(BaseParticles* base_particles) override;
+	};
+
+	/**
 	 * @class DirectionalDiffusion
 	 * @brief Diffusion is biased along a specific direction.
 	 */
@@ -136,10 +164,8 @@ namespace SPH
 	protected:
 		StdLargeVec<Vecd> local_bias_direction_;
 		StdLargeVec<Matd> local_transformed_diffusivity_;
-		StdLargeVec<Real> local_thermal_conductivity_;
 
 		void initializeFiberDirection();
-		void initializeThermalConductivity();
 
 	public:
 		LocalDirectionalDiffusion(size_t diffusion_species_index, size_t gradient_species_index,
@@ -150,21 +176,8 @@ namespace SPH
 		};
 		virtual ~LocalDirectionalDiffusion(){};
 
-		virtual Real getDiffusionCoffWithBoundary(size_t particle_index_i) override
-		{
-			Matd diff_i = local_thermal_conductivity_[particle_index_i] * Matd::Identity();
-			local_transformed_diffusivity_[particle_index_i] = inverseCholeskyDecomposition(diff_i);
-			Matd trans_diffusivity = local_transformed_diffusivity_[particle_index_i];
-			Vecd grad_ij = trans_diffusivity * Vec2d(sqrt(2) / 2, sqrt(2) / 2);
-			return 1.0 / grad_ij.squaredNorm();
-		}
-
 		virtual Real getInterParticleDiffusionCoff(size_t particle_index_i, size_t particle_index_j, Vecd &inter_particle_direction) override
 		{
-			Matd diff_i = local_thermal_conductivity_[particle_index_i] * Matd::Identity();
-			Matd diff_j = local_thermal_conductivity_[particle_index_j] * Matd::Identity();
-			local_transformed_diffusivity_[particle_index_i] = inverseCholeskyDecomposition(diff_i);
-			local_transformed_diffusivity_[particle_index_j] = inverseCholeskyDecomposition(diff_j);
 			Matd trans_diffusivity = getAverageValue(local_transformed_diffusivity_[particle_index_i], local_transformed_diffusivity_[particle_index_j]);
 			Vecd grad_ij = trans_diffusivity * inter_particle_direction;
 			return 1.0 / grad_ij.squaredNorm();

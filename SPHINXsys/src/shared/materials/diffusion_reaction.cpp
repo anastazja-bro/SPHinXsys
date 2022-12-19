@@ -4,6 +4,19 @@
 namespace SPH
 {
 	//=================================================================================================//
+	void LocalIsotropicDiffusion::assignBaseParticles(BaseParticles *base_particles)
+	{
+		LocalIsotropicDiffusion::assignBaseParticles(base_particles);
+		initializeThermalConductivity();
+	}
+	//=================================================================================================//
+	void LocalIsotropicDiffusion::initializeThermalConductivity()
+	{
+		base_particles_->registerVariable(local_thermal_conductivity_, "ThermalDiffusivity", [&](size_t i) -> Real { return diff_cf_; });
+		base_particles_->addVariableToWrite<Real>("ThermalDiffusivity");
+		base_particles_->addVariableToRestart<Real>("ThermalDiffusivity");
+	}
+	//=================================================================================================//
 	void DirectionalDiffusion::initializeDirectionalDiffusivity(Real diff_cf, Real bias_diff_cf, Vecd bias_direction)
 	{
 		bias_diff_cf_ = bias_diff_cf;
@@ -16,21 +29,12 @@ namespace SPH
 	{
 		DirectionalDiffusion::assignBaseParticles(base_particles);
 		initializeFiberDirection();
-		initializeThermalConductivity();
 	};
 	//=================================================================================================//
 	void LocalDirectionalDiffusion::initializeFiberDirection()
 	{
 		base_particles_->registerVariable(local_bias_direction_, "Fiber");
 		base_particles_->addVariableNameToList<Vecd>(reload_local_parameters_, "Fiber");
-	}
-	//=================================================================================================//
-	void LocalDirectionalDiffusion::initializeThermalConductivity()
-	{
-		base_particles_->registerVariable(local_transformed_diffusivity_, "TransformedDiffusivity");
-		base_particles_->registerVariable(local_thermal_conductivity_, "ThermalDiffusivity", [&](size_t i) -> Real { return diff_cf_; });
-		base_particles_->addVariableToWrite<Real>("ThermalDiffusivity");
-		base_particles_->addVariableToRestart<Real>("ThermalDiffusivity");
 	}
 	//=================================================================================================//
 	void LocalDirectionalDiffusion::readFromXmlForLocalParameters(const std::string &filefullpath)
