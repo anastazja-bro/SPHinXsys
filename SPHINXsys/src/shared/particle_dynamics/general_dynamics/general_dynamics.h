@@ -61,18 +61,18 @@ namespace SPH
 	};
 
 	/**
-	 * @class SourceAssignment
+	 * @class ImposingSourceTerm
 	 * @brief set source effect to a discrete variable
 	 */
 	template <typename DataType>
-	class SourceAssignment : public LocalDynamics, public GeneralDataDelegateSimple
+	class ImposingSourceTerm : public LocalDynamics, public GeneralDataDelegateSimple
 	{
 	public:
-		SourceAssignment(SPHBody &sph_body, const std::string &variable_name, const DataType &source_strength)
+		ImposingSourceTerm(SPHBody &sph_body, const std::string &variable_name, const DataType &source_strength)
 			: LocalDynamics(sph_body), GeneralDataDelegateSimple(sph_body),
 			  variable_(*particles_->getVariableByName<DataType>(variable_name)),
 			  source_strength_(source_strength){};
-		virtual ~SourceAssignment(){};
+		virtual ~ImposingSourceTerm(){};
 		void update(size_t index_i, Real dt)
 		{
 			variable_[index_i] += source_strength_ * dt;

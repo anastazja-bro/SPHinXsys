@@ -224,7 +224,7 @@ namespace SPH
 			Real mass_j = mass_[index_j];
 
 			VariableType variable_derivative = (variable_i - variable_[index_j]);
-			Real parameter_b = coefficient(index_i, index_j) *
+			Real parameter_b = 2.0 * coefficient(index_i, index_j) *
 							   inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / inner_neighborhood.r_ij_[n];
 
 			VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
@@ -239,7 +239,7 @@ namespace SPH
 			Real mass_j = mass_[index_j];
 
 			VariableType variable_derivative = (variable_i - variable_[index_j]);
-			Real parameter_b = coefficient(index_i, index_j) *
+			Real parameter_b = 2.0 * coefficient(index_i, index_j) *
 							   inner_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / inner_neighborhood.r_ij_[n - 1];
 
 			VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
@@ -318,7 +318,7 @@ namespace SPH
 				Real mass_j = mass_k[index_j];
 
 				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = coefficient(index_i, index_j) *
+				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
 								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / contact_neighborhood.r_ij_[n];
 
 				VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
@@ -332,7 +332,7 @@ namespace SPH
 				Real mass_j = mass_k[index_j];
 
 				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = coefficient(index_i, index_j) *
+				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
 								   contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / contact_neighborhood.r_ij_[n - 1];
 
 				VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
@@ -374,7 +374,7 @@ namespace SPH
 			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
 			{
 				size_t index_j = contact_neighborhood.j_[n];
-				Real parameter_b = coefficient(index_i, index_j) *
+				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
 								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / contact_neighborhood.r_ij_[n];
 
 				// only update particle i
@@ -385,7 +385,7 @@ namespace SPH
 			for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
 			{
 				size_t index_j = contact_neighborhood.j_[n - 1];
-				Real parameter_b = coefficient(index_i, index_j) *
+				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
 								   contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / contact_neighborhood.r_ij_[n - 1];
 
 				// only update particle i

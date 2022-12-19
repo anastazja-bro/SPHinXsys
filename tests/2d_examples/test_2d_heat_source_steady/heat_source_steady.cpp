@@ -1,25 +1,25 @@
 /**
- * @file 	diffusion_op.cpp
- * @brief 	This is the first test to validate the optimization.
+ * @file 	heat_source_steady.cpp
+ * @brief 	This is the first test to demonstrate SPHInXsys as an optimization tool.
+ * @details Consider a 2d block thermal domain with two constant temperature regions at the lower
+ * 			and upper boundaries. The radiation-like source is distributed in the entire block domain.
+ * 			The optimization target is to achieve lowest average temperature by modifying the distribution of
+ * 			thermal diffusion rate in the domain with an extra conservation constraint that
+ * 			the integral of the thermal diffusion rate in the entire domain is constant.
  * @author 	Bo Zhang and Xiangyu Hu
  */
-#include "sphinxsys.h" //SPHinXsys Library
+#include "sphinxsys.h" // using SPHinXsys library
 using namespace SPH;   // Namespace cite here
 //----------------------------------------------------------------------
 //	Global geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real L = 1.0; // inner domain length
-Real H = 1.0; // inner domain height
-Real resolution_ref = H / 100.0;
-Real BW = resolution_ref * 2.0; // boundary thickness
+Real L = 1.0;					 // inner domain length
+Real H = 1.0;					 // inner domain height
+Real resolution_ref = H / 100.0; // reference resolution for discretization
+Real BW = resolution_ref * 2.0;	 // boundary width
 BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //----------------------------------------------------------------------
-//	Global parameters for material properties.
-//----------------------------------------------------------------------
-std::string coefficient_name = "ThermalConductionRate";
-Real diffusion_coff = 1;
-//----------------------------------------------------------------------
-//	Global parameters for setting up variables.
+//	Global parameters for physics state variables.
 //----------------------------------------------------------------------
 std::string variable_name = "Phi";
 Real lower_temperature = 300.0;
@@ -27,17 +27,23 @@ Real upper_temperature = 350.0;
 Real stead_reference = upper_temperature - lower_temperature;
 Real heat_source = 100.0;
 //----------------------------------------------------------------------
-//	Geometric shapes used in the system.
+//	Global parameters for material properties or coefficient variables.
 //----------------------------------------------------------------------
-Vec2d solid_block_halfsize = Vec2d(0.5 * L, 0.5 * H);			 // local center at origin
-Vec2d solid_block_translation = solid_block_halfsize;			 // translation to global coordinates
-Vec2d constraint_halfsize = Vec2d(0.05 * L, 0.5 * BW);			 // constraint region size
-Vec2d top_constraint_translation = Vec2d(0.5 * L, L + 0.5 * BW); // top constraint region
-Vec2d bottom_constraint_translation = Vec2d(0.5 * L, -0.5 * BW); // bottom constraint region
+std::string coefficient_name = "ThermalDiffusionRate";
+Real diffusion_coff = 1.0;
+//----------------------------------------------------------------------
+//	Geometric regions used in the system.
+//----------------------------------------------------------------------
+Vec2d block_halfsize = Vec2d(0.5 * L, 0.5 * H);					 // local center at origin
+Vec2d block_translation = block_halfsize;						 // translation to global coordinates
+Vec2d constraint_halfsize = Vec2d(0.05 * L, 0.5 * BW);			 // constraint block half size
+Vec2d top_constraint_translation = Vec2d(0.5 * L, L + 0.5 * BW); // top constraint
+Vec2d bottom_constraint_translation = Vec2d(0.5 * L, -0.5 * BW); // bottom constraint
 class IsothermalBoundaries : public ComplexShape
 {
 public:
-	explicit IsothermalBoundaries(const std::string &shape_name) : ComplexShape(shape_name)
+	explicit IsothermalBoundaries(const std::string &shape_name)
+		: ComplexShape(shape_name)
 	{
 		add<TransformShape<GeometricShapeBox>>(Transform2d(top_constraint_translation), constraint_halfsize);
 		add<TransformShape<GeometricShapeBox>>(Transform2d(bottom_constraint_translation), constraint_halfsize);
@@ -76,7 +82,7 @@ protected:
 	StdLargeVec<Vecd> &pos_;
 };
 //----------------------------------------------------------------------
-//	Application dependent initial condition.
+//	Application dependent coefficient distribution.
 //----------------------------------------------------------------------
 class DiffusionCoefficientDistribution : public ValueAssignment<Real>
 {
@@ -86,7 +92,7 @@ public:
 		  pos_(particles_->pos_){};
 	void update(size_t index_i, Real dt)
 	{
-		variable_[index_i] = pos_[index_i][1] < 0.5 * H ? 1.0 : 0.1;
+		variable_[index_i] = pos_[index_i][1] < 0.5 * H ? diffusion_coff : 0.1 * diffusion_coff;
 	};
 
 protected:
@@ -107,19 +113,22 @@ int main()
 	//----------------------------------------------------------------------
 	SolidBody diffusion_body(sph_system,
 							 makeShared<TransformShape<GeometricShapeBox>>(
-								 Transform2d(solid_block_translation), solid_block_halfsize, "DiffusionBody"));
+								 Transform2d(block_translation), block_halfsize, "DiffusionBody"));
 	diffusion_body.defineParticlesAndMaterial<SolidParticles, Solid>();
 	diffusion_body.generateParticles<ParticleGeneratorLattice>();
+	//----------------------------------------------------------------------
+	//	add extra discrete variables (not defined in the library)
+	//----------------------------------------------------------------------
 	StdLargeVec<Real> body_temperature;
 	diffusion_body.addBodyState<Real>(body_temperature, variable_name);
 	diffusion_body.addBodyStateForRecording<Real>(variable_name);
 	diffusion_body.addBodyStateToRestart<Real>(variable_name);
-	StdLargeVec<Real> thermal_conduction_rate;
-	diffusion_body.addBodyState<Real>(thermal_conduction_rate, coefficient_name);
+	StdLargeVec<Real> thermal_diffusion_rate;
+	diffusion_body.addBodyState<Real>(thermal_diffusion_rate, coefficient_name);
 	diffusion_body.addBodyStateForRecording<Real>(coefficient_name);
 	diffusion_body.addBodyStateToRestart<Real>(coefficient_name);
 
-	SolidBody isothermal_boundaries(sph_system, makeShared<IsothermalBoundaries>("IsoThermalBoundaries"));
+	SolidBody isothermal_boundaries(sph_system, makeShared<IsothermalBoundaries>("IsothermalBoundaries"));
 	isothermal_boundaries.defineParticlesAndMaterial<SolidParticles, Solid>();
 	isothermal_boundaries.generateParticles<ParticleGeneratorLattice>();
 	StdLargeVec<Real> constrained_temperature;
@@ -135,11 +144,11 @@ int main()
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
 	//----------------------------------------------------------------------
-	SimpleDynamics<DiffusionBodyInitialCondition> setup_diffusion_initial_condition(diffusion_body);
-	SimpleDynamics<IsothermalBoundariesConstraints> setup_boundary_condition(isothermal_boundaries);
-	SimpleDynamics<DiffusionCoefficientDistribution> setup_diffusion_coefficient(diffusion_body);
-	SimpleDynamics<SourceAssignment<Real>> thermal_source(diffusion_body, variable_name, heat_source);
-	ReduceDynamics<SteadySolutionCheck<Real>> check_steady_temperature(diffusion_body, variable_name, stead_reference);
+	SimpleDynamics<DiffusionBodyInitialCondition> diffusion_initial_condition(diffusion_body);
+	SimpleDynamics<IsothermalBoundariesConstraints> boundary_constraint(isothermal_boundaries);
+	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
+	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
+	ReduceDynamics<SteadySolutionCheck<Real>> check_steady_solution(diffusion_body, variable_name, stead_reference);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -157,9 +166,9 @@ int main()
 	//----------------------------------------------------------------------
 	sph_system.initializeSystemCellLinkedLists();
 	sph_system.initializeSystemConfigurations();
-	setup_diffusion_initial_condition.parallel_exec();
-	setup_boundary_condition.parallel_exec();
-	setup_diffusion_coefficient.parallel_exec();
+	diffusion_initial_condition.parallel_exec();
+	boundary_constraint.parallel_exec();
+	coefficient_distribution.parallel_exec();
 	//----------------------------------------------------------------------
 	//	Load restart file if necessary.
 	//----------------------------------------------------------------------
@@ -194,7 +203,6 @@ int main()
 		Real relaxation_time = 0.0;
 		while (relaxation_time < Observe_time)
 		{
-
 			thermal_source.parallel_exec(dt);
 			implicit_heat_transfer_solver.parallel_exec(dt);
 
@@ -214,7 +222,7 @@ int main()
 		}
 
 		write_states.writeToFile(ite);
-		if (check_steady_temperature.parallel_exec())
+		if (check_steady_solution.parallel_exec())
 		{
 			std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
 			return 0;
