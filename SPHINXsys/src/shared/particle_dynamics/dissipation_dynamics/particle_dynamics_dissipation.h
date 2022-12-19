@@ -32,6 +32,7 @@
 #define PARTICLE_DYNAMICS_DISSIPATION_H
 
 #include "all_particle_dynamics.h"
+#include "solid_particles.h"
 
 namespace SPH
 {
@@ -109,15 +110,34 @@ namespace SPH
 	};
 
 	/**
-	 * @class DampingPairwiseInner
-	 * @brief A quantity damping by a pairwise splitting scheme
+	 * @class BaseDampingPairwiseInner
+	 * @brief Base class for a quantity damping by a pairwise splitting scheme
 	 * this method modifies the quantity directly
-	 * Note that, if periodic boundary condition is applied,
+	 * Note that, if periodic boundary condition is applied for a simulation,
 	 * the parallelized version of the method requires the one using ghost particles
 	 * because the splitting partition only works in this case.
 	 */
 	template <typename VariableType>
-	class DampingPairwiseInner : public LocalDynamics, public DissipationDataInner
+	class BaseDampingPairwiseInner : public LocalDynamics, public DissipationDataInner
+	{
+	public:
+		BaseDampingPairwiseInner(BaseInnerRelation &inner_relation, const std::string &variable_name);
+		virtual ~BaseDampingPairwiseInner(){};
+
+	protected:
+		StdLargeVec<Real> &Vol_, &mass_;
+		StdLargeVec<VariableType> &variable_;
+
+		template <typename InterParticleCoefficient>
+		void dampPairwiseInner(size_t index_i, Real dt, const InterParticleCoefficient &coefficient);
+	};
+
+	/**
+	 * @class DampingPairwiseInner
+	 * @brief Damping with constant coefficient.
+	 */
+	template <typename VariableType>
+	class DampingPairwiseInner : public BaseDampingPairwiseInner<VariableType>
 	{
 	public:
 		DampingPairwiseInner(BaseInnerRelation &inner_relation, const std::string &variable_name, Real eta);
@@ -125,46 +145,88 @@ namespace SPH
 		void interaction(size_t index_i, Real dt = 0.0);
 
 	protected:
-		StdLargeVec<Real> &Vol_, &mass_;
-		StdLargeVec<VariableType> &variable_;
 		Real eta_; /**< damping coefficient */
 	};
 
+	/**
+	 * @class DampingPairwiseInnerVariableCoefficient
+	 * @brief Damping with constant coefficient.
+	 */
 	template <typename VariableType>
-	class DampingPairwiseComplex : public DampingPairwiseInner<VariableType>, public DissipationDataContact
+	class DampingPairwiseInnerVariableCoefficient : public BaseDampingPairwiseInner<VariableType>
 	{
 	public:
-		DampingPairwiseComplex(BaseInnerRelation &inner_relation,
-							   BaseContactRelation &contact_relation, const std::string &variable_name, Real eta);
-		DampingPairwiseComplex(ComplexRelation &complex_relation, const std::string &variable_name, Real eta);
-		virtual ~DampingPairwiseComplex(){};
+		DampingPairwiseInnerVariableCoefficient(
+			BaseInnerRelation &inner_relation,
+			const std::string &variable_name, const std::string &coefficient_name);
+		virtual ~DampingPairwiseInnerVariableCoefficient(){};
 		void interaction(size_t index_i, Real dt = 0.0);
 
-	private:
-		StdVec<StdLargeVec<Real> *> contact_Vol_, contact_mass_;
-		StdVec<StdLargeVec<VariableType> *> contact_variable_;
+	protected:
+		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
 	};
 
 	/**
-	 * @class DampingPairwiseWithWall
-	 * @brief Damping with wall by which the wall velocity is not updated
-	 * and the mass of wall particle is not considered.
+	 * @class DampingCoefficientEvolution
+	 * @brief Only works for scalar variable and coefficient. 
+	 * TODO: to be generalized for different data type
 	 */
-	template <typename VariableType,
-			  template <typename BaseVariableType> class BaseDampingPairwiseType>
-	class DampingPairwiseWithWall : public BaseDampingPairwiseType<VariableType>,
-									public DissipationDataWithWall
+	class DampingCoefficientEvolution : public LocalDynamics, public DissipationDataInner
 	{
 	public:
-		DampingPairwiseWithWall(BaseInnerRelation &inner_relation,
-								BaseContactRelation &contact_relation, const std::string &variable_name, Real eta);
-		DampingPairwiseWithWall(ComplexRelation &complex_wall_relation, const std::string &variable_name, Real eta);
-		virtual ~DampingPairwiseWithWall(){};
-		void interaction(size_t index_i, Real dt = 0.0);
+		DampingCoefficientEvolution(BaseInnerRelation &inner_relation, 
+		const std::string &variable_name, const std::string &coefficient_name);
+		virtual ~DampingCoefficientEvolution(){};
+		void interaction(size_t index_i, Real dt);
+
+	protected:
+		StdLargeVec<Real> &Vol_, &mass_;
+		StdLargeVec<Real> &variable_;
+		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+	};
+
+	/**
+	 * @class BaseDampingPairwiseComplex
+	 * @brief Damping between contact bodies with constant coefficient.
+	 * TODO: not tested yet.
+	 */
+	template <typename VariableType>
+	class BaseDampingPairwiseComplex : public BaseDampingPairwiseInner<VariableType>, public DissipationDataContact
+	{
+	public:
+		BaseDampingPairwiseComplex(BaseInnerRelation &inner_relation,
+								   BaseContactRelation &contact_relation, const std::string &variable_name);
+		BaseDampingPairwiseComplex(ComplexRelation &complex_relation, const std::string &variable_name);
+		virtual ~BaseDampingPairwiseComplex(){};
 
 	private:
-		StdVec<StdLargeVec<Real> *> wall_Vol_;
+		StdVec<StdLargeVec<Real> *> contact_mass_;
+		StdVec<StdLargeVec<VariableType> *> contact_variable_;
+
+		template <typename InterParticleCoefficient>
+		void dampPairwiseContact(size_t index_i, Real dt, const InterParticleCoefficient &coefficient);
+	};
+
+	/**
+	 * @class BaseDampingPairwiseFromWall
+	 * @brief Damping to wall by which the wall velocity is not updated
+	 * and the mass of wall particle is not considered.
+	 */
+	template <typename VariableType>
+	class BaseDampingPairwiseFromWall : public LocalDynamics,
+										public DataDelegateContact<BaseParticles, SolidParticles>
+	{
+	public:
+		BaseDampingPairwiseFromWall(BaseContactRelation &contact_relation, const std::string &variable_name);
+		virtual ~BaseDampingPairwiseFromWall(){};
+
+	protected:
+		StdLargeVec<Real> &Vol_, &mass_;
+		StdLargeVec<VariableType> &variable_;
 		StdVec<StdLargeVec<VariableType> *> wall_variable_;
+
+		template <typename InterParticleCoefficient>
+		void dampPairwiseFromWall(size_t index_i, Real dt, const InterParticleCoefficient &coefficient);
 	};
 
 	/**
@@ -173,20 +235,65 @@ namespace SPH
 	 * and the mass of wall particle is not considered.
 	 */
 	template <typename VariableType>
-	class DampingPairwiseFromWall : public LocalDynamics,
-									public DataDelegateContact<BaseParticles, SolidParticles>
+	class DampingPairwiseFromWall : public BaseDampingPairwiseFromWall<VariableType>
 	{
 	public:
 		DampingPairwiseFromWall(BaseContactRelation &contact_relation, const std::string &variable_name, Real eta);
 		virtual ~DampingPairwiseFromWall(){};
 		void interaction(size_t index_i, Real dt = 0.0);
 
-	private:
+	protected:
 		Real eta_; /**< damping coefficient */
-		StdLargeVec<Real> &Vol_, &mass_;
-		StdLargeVec<VariableType> &variable_;
-		StdVec<StdLargeVec<Real> *> wall_Vol_;
-		StdVec<StdLargeVec<VariableType> *> wall_variable_;
+	};
+
+	/**
+	 * @class DampingPairwiseFromWall
+	 * @brief Damping to wall by which the wall velocity is not updated
+	 * and the mass of wall particle is not considered.
+	 */
+	template <typename VariableType>
+	class DampingPairwiseFromWallVariableCoefficient : public BaseDampingPairwiseFromWall<VariableType>
+	{
+	public:
+		DampingPairwiseFromWallVariableCoefficient(
+			BaseContactRelation &contact_relation,
+			const std::string &variable_name, const std::string &coefficient_name);
+		virtual ~DampingPairwiseFromWallVariableCoefficient(){};
+		void interaction(size_t index_i, Real dt = 0.0);
+
+	protected:
+		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+	};
+
+	/**
+	 * @class DampingComplex
+	 * @brief Damping with wall by which the wall velocity is not updated
+	 * and the mass of wall particle is not considered.
+	 */
+	template <class BaseDampingInnerType, class BaseDampingContactType>
+	class DampingComplex : public LocalDynamics
+	{
+		BaseDampingInnerType inner_interaction_;
+		BaseDampingContactType contact_interaction_;
+
+	public:
+		template <typename... Args>
+		DampingComplex(BaseInnerRelation &inner_relation,
+					   BaseContactRelation &contact_relation, Args &&...args)
+			: LocalDynamics(inner_relation.sph_body_),
+			  inner_interaction_(inner_relation, std::forward<Args>(args)...),
+			  contact_interaction_(contact_relation, std::forward<Args>(args)...){};
+		template <typename... Args>
+		DampingComplex(ComplexRelation &complex_wall_relation, Args &&...args)
+			: DampingComplex(complex_wall_relation.getInnerRelation(),
+							 complex_wall_relation.getContactRelation(),
+							 std::forward<Args>(args)...){};
+		virtual ~DampingComplex(){};
+		void interaction(size_t index_i, Real dt = 0.0)
+		{
+			contact_interaction_.interaction(index_i, dt);
+			inner_interaction_.interaction(index_i, dt);
+		};
 	};
 
 	/**

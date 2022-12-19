@@ -44,6 +44,46 @@ namespace SPH
 		GeneralDataDelegateContact;
 
 	/**
+	 * @class ValueAssignment
+	 * @brief set initial condition for a discrete variable
+	 */
+	template <typename DataType>
+	class ValueAssignment : public LocalDynamics, public GeneralDataDelegateSimple
+	{
+	public:
+		ValueAssignment(SPHBody &sph_body, const std::string &variable_name)
+			: LocalDynamics(sph_body), GeneralDataDelegateSimple(sph_body),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name)){};
+		virtual ~ValueAssignment(){};
+
+	protected:
+		StdLargeVec<DataType> &variable_;
+	};
+
+	/**
+	 * @class ImposingSourceTerm
+	 * @brief set source effect to a discrete variable
+	 */
+	template <typename DataType>
+	class ImposingSourceTerm : public LocalDynamics, public GeneralDataDelegateSimple
+	{
+	public:
+		ImposingSourceTerm(SPHBody &sph_body, const std::string &variable_name, const DataType &source_strength)
+			: LocalDynamics(sph_body), GeneralDataDelegateSimple(sph_body),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name)),
+			  source_strength_(source_strength){};
+		virtual ~ImposingSourceTerm(){};
+		void update(size_t index_i, Real dt)
+		{
+			variable_[index_i] += source_strength_ * dt;
+		};
+
+	protected:
+		StdLargeVec<DataType> &variable_;
+		DataType source_strength_;
+	};
+
+	/**
 	 * @class BaseTimeStepInitialization
 	 * @brief base class for time step initialization.
 	 */
@@ -109,8 +149,8 @@ namespace SPH
 		explicit ParticleSmoothing(BaseInnerRelation &inner_relation, const std::string &variable_name)
 			: LocalDynamics(inner_relation.sph_body_), GeneralDataDelegateInner(inner_relation),
 			  W0_(sph_body_.sph_adaptation_->getKernel()->W0(zero_vec)),
-			  smoothed_(*particles_->getVariableByName<VariableType>(variable_name))
-		{	
+			  smoothed_(*particles_->template getVariableByName<VariableType>(variable_name))
+		{
 			Vecd zero = Vecd::Zero();
 			particles_->registerVariable(temp_, variable_name + "_temp");
 		}
@@ -245,7 +285,7 @@ namespace SPH
 		explicit QuantitySummation(SPHBody &sph_body, const std::string &variable_name)
 			: LocalDynamicsReduce<VariableType, ReduceSum<VariableType>>(sph_body, ZeroData<VariableType>::value),
 			  GeneralDataDelegateSimple(sph_body),
-			  variable_(*this->particles_->getVariableByName<VariableType>(variable_name))
+			  variable_(*this->particles_->template getVariableByName<VariableType>(variable_name))
 		{
 			this->quantity_name_ = variable_name + "Summation";
 		};
@@ -299,10 +339,55 @@ namespace SPH
 		Gravity *gravity_;
 
 	public:
-		TotalMechanicalEnergy(SPHBody &sph_body, SharedPtr<Gravity> = makeShared<Gravity>( Vecd::Zero() ));
+		explicit TotalMechanicalEnergy(SPHBody &sph_body, SharedPtr<Gravity> = makeShared<Gravity>(Vecd::Zero()));
 		virtual ~TotalMechanicalEnergy(){};
 
 		Real reduce(size_t index_i, Real dt = 0.0);
+	};
+
+	/**
+	 * @class SteadySolutionCheck
+	 * @brief check whether a variable has reached a steady state
+	 */
+	template <typename DataType>
+	class SteadySolutionCheck : public LocalDynamicsReduce<bool, ReduceAND>,
+								public GeneralDataDelegateSimple
+	{
+	protected:
+		DataType steady_reference_;
+		const Real criterion_ = 1.0e-6;
+
+		StdLargeVec<DataType> &variable_, variable_temp_;
+
+		bool checkSteady(const Real &increment)
+		{
+			return increment * increment / steady_reference_ / steady_reference_ < criterion_;
+		};
+
+		template <typename IncrementDatatype>
+		bool checkSteady(const IncrementDatatype &increment)
+		{
+			return increment.squaredNorm() / steady_reference_.squaredNorm() < criterion_;
+		};
+
+	public:
+		SteadySolutionCheck(SPHBody &sph_body, const std::string &variable_name, const DataType &steady_reference)
+			: LocalDynamicsReduce<bool, ReduceAND>(sph_body, true),
+			  GeneralDataDelegateSimple(sph_body), steady_reference_(steady_reference),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name))
+		{
+			particles_->registerVariable(variable_temp_, "Temporary" + variable_name,
+										 [&](size_t index_i)
+										 { return variable_[index_i]; });
+		};
+		virtual ~SteadySolutionCheck(){};
+
+		bool reduce(size_t index_i, Real dt)
+		{
+			DataType increment = variable_[index_i] - variable_temp_[index_i];
+			variable_temp_[index_i] = variable_[index_i];
+			return checkSteady(increment);
+		};
 	};
 }
 #endif // GENERAL_DYNAMICS_H
