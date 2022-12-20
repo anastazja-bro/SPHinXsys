@@ -418,5 +418,22 @@ namespace SPH
 		};
 		virtual ~SteadySolutionCheckComplex(){};
 	};
+
+	class ConstraintTotalScalarAmount : public LocalDynamics, public GeneralDataDelegateSimple
+	{
+	public:
+		ConstraintTotalScalarAmount(SPHBody &sph_body, const std::string &variable_name);
+		virtual ~ConstraintTotalScalarAmount(){};
+		void setupInitialScalarAmount();
+		void setupDynamics(Real dt = 0.0) override;
+		void update(size_t index_i, Real dt = 0.0);
+
+	protected:
+		StdLargeVec<Real> &variable_;
+		ReduceDynamics<QuantityMoment<Real>> total_scalar_;
+		bool is_initialized_;
+		Real inital_total_;
+		Real increment_;
+	};
 }
 #endif // GENERAL_DYNAMICS_H

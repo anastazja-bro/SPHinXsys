@@ -150,6 +150,7 @@ int main()
 	SimpleDynamics<DiffusionBodyInitialCondition> diffusion_initial_condition(diffusion_body);
 	SimpleDynamics<IsothermalBoundariesConstraints> boundary_constraint(isothermal_boundaries);
 	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
+	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
 	ReduceDynamics<DampingSteadyCheckVariableCoefficient<SteadySolutionCheckComplex<Laplacian<Real>>>>
 		check_steady_solution(diffusion_body_complex, coefficient_name, variable_name, stead_reference);
@@ -175,6 +176,7 @@ int main()
 	diffusion_initial_condition.parallel_exec();
 	boundary_constraint.parallel_exec();
 	coefficient_distribution.parallel_exec();
+	constrain_total_coefficient.setupInitialScalarAmount();
 	//----------------------------------------------------------------------
 	//	Load restart file if necessary.
 	//----------------------------------------------------------------------
@@ -232,6 +234,7 @@ int main()
 		{
 			std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
 			damping_coefficient_evolution.parallel_exec(dt);
+			constrain_total_coefficient.parallel_exec();
 		}
 	}
 
