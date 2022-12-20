@@ -61,4 +61,52 @@ namespace SPH
         }
     }
     //=================================================================================================//
+    DampingCoefficientEvolutionFromWall::
+        DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
+                                            const std::string &variable_name, const std::string &coefficient_name)
+        : LocalDynamics(contact_relation.sph_body_),
+          DataDelegateContact<BaseParticles, SolidParticles>(contact_relation),
+          Vol_(particles_->Vol_), mass_(particles_->mass_),
+          variable_(*particles_->getVariableByName<Real>(variable_name)),
+          eta_(*this->particles_->template getVariableByName<Real>(coefficient_name))
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            wall_variable_.push_back(contact_particles_[k]->template getVariableByName<Real>(variable_name));
+        }
+    }
+    //=================================================================================================//
+    void DampingCoefficientEvolutionFromWall::interaction(size_t index_i, Real dt)
+    {
+        Real Vol_i = Vol_[index_i];
+        Real mass_i = mass_[index_i];
+        const Real &variable_i = variable_[index_i];
+        Real &eta_i = eta_[index_i];
+        Real dt2 = dt * 0.5;
+        // interaction with wall
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            const StdLargeVec<Real> &variable_k = *(wall_variable_[k]);
+            const Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            // forward sweep
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                Real parameter_b = 2.0 * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / contact_neighborhood.r_ij_[n];
+                size_t index_j = contact_neighborhood.j_[n];
+
+                Real variable_diff = (variable_i - variable_k[index_j]);
+                eta_i += parameter_b * eta_i * variable_diff / (mass_i - parameter_b * variable_diff);
+            }
+
+            // backward sweep
+            for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
+            {
+                size_t index_j = contact_neighborhood.j_[n - 1];
+                Real parameter_b = 2.0 * contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / contact_neighborhood.r_ij_[n - 1];
+
+                Real variable_diff = (variable_i - variable_k[index_j]);
+                eta_i += parameter_b * eta_i * variable_diff / (mass_i - parameter_b * variable_diff);
+            }
+        }
+    } //=================================================================================================//
 }

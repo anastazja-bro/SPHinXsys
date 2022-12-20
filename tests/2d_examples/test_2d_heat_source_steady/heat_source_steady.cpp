@@ -95,7 +95,7 @@ public:
 		  pos_(particles_->pos_){};
 	void update(size_t index_i, Real dt)
 	{
-		variable_[index_i] = pos_[index_i][1] < 0.5 * H ? diffusion_coff : 0.1 * diffusion_coff;
+		variable_[index_i] = diffusion_coff;
 	};
 
 protected:
@@ -161,10 +161,11 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingPairwiseInnerVariableCoefficient<Real>>
-		implicit_heat_transfer_solver(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name);
-	InteractionSplit<DampingCoefficientEvolution>
-		damping_coefficient_evolution(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name);
+	InteractionSplit<DampingComplex<DampingPairwiseInnerVariableCoefficient<Real>,
+									DampingPairwiseFromWallVariableCoefficient<Real>>>
+		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
+	InteractionSplit<DampingComplex<DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
+		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -208,14 +209,8 @@ int main()
 		Real relaxation_time = 0.0;
 		while (relaxation_time < Observe_time)
 		{
-			if (GlobalStaticVariables::physical_time_ < 0.005)
-			{
-				implicit_heat_transfer_solver.parallel_exec(dt);
-			}
-			else
-			{
-				damping_coefficient_evolution.parallel_exec(dt);
-			}
+			thermal_source.parallel_exec(dt);
+			implicit_heat_transfer_solver.parallel_exec(dt);
 
 			ite++;
 			relaxation_time += dt;
@@ -236,7 +231,7 @@ int main()
 		if (check_steady_thermal_diffusion.parallel_exec())
 		{
 			std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
-			return 0;
+			damping_coefficient_evolution.parallel_exec(dt);
 		}
 	}
 
