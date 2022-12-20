@@ -27,9 +27,9 @@ namespace SPH
         // forward sweep
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
+            Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / inner_neighborhood.r_ij_[n];
             size_t index_j = inner_neighborhood.j_[n];
             Real mass_j = mass_[index_j];
-            Real parameter_b = inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / inner_neighborhood.r_ij_[n];
 
             Real variable_diff = (variable_i - variable_[index_j]);
             Real variable_diff_abs = ABS(variable_diff);
@@ -45,9 +45,9 @@ namespace SPH
         // backward sweep
         for (size_t n = inner_neighborhood.current_size_; n != 0; --n)
         {
+            Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / inner_neighborhood.r_ij_[n - 1];
             size_t index_j = inner_neighborhood.j_[n - 1];
             Real mass_j = mass_[index_j];
-            Real parameter_b = inner_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / inner_neighborhood.r_ij_[n - 1];
 
             Real variable_diff = (variable_i - variable_[index_j]);
             Real variable_diff_abs = ABS(variable_diff);
