@@ -149,9 +149,9 @@ int main()
 	//----------------------------------------------------------------------
 	//	Coupling between SimBody and SPH
 	//----------------------------------------------------------------------
-	ReduceDynamics<solid_dynamics::TotalForceForSimBody, FlapSystemForSimbody>
+	ReduceDynamics<solid_dynamics::TotalForceForSimBody, BodyPartByParticle>
 		force_on_spot_flap(flap_multibody, MBsystem, pin_spot, force_on_bodies, integ);
-	SimpleDynamics<solid_dynamics::ConstraintBySimBody, FlapSystemForSimbody>
+	SimpleDynamics<solid_dynamics::ConstraintBySimBody, BodyPartByParticle>
 		constraint_spot_flap(flap_multibody, MBsystem, pin_spot, force_on_bodies, integ);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -163,15 +163,15 @@ int main()
 	
 	/** WaveProbes. */
 	BodyRegionByCell wave_probe_buffer_no_4(water_block, makeShared<MultiPolygonShape>(createWaveProbeShape4(), "WaveProbe_04"));
-	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight, BodyRegionByCell>>
+	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight, BodyPartByCell>>
 		wave_probe_4(io_environment, wave_probe_buffer_no_4);
 
 	BodyRegionByCell wave_probe_buffer_no_5(water_block, makeShared<MultiPolygonShape>(createWaveProbeShape5(), "WaveProbe_05"));
-	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight, BodyRegionByCell>>
+	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight, BodyPartByCell>>
 		wave_probe_5(io_environment, wave_probe_buffer_no_5);
 
 	BodyRegionByCell wave_probe_buffer_no_12(water_block, makeShared<MultiPolygonShape>(createWaveProbeShape12(), "WaveProbe_12"));
-	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight, BodyRegionByCell>>
+	ReducedQuantityRecording<ReduceDynamics<fluid_dynamics::FreeSurfaceHeight, BodyPartByCell>>
 		wave_probe_12(io_environment, wave_probe_buffer_no_12);
 	
 	/** Pressure probe. */

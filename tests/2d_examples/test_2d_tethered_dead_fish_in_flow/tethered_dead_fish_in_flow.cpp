@@ -363,9 +363,9 @@ int main(int ac, char *av[])
 	//----------------------------------------------------------------------
 	//	Coupling between SimBody and SPH
 	//----------------------------------------------------------------------
-	ReduceDynamics<solid_dynamics::TotalForceForSimBody, SolidBodyPartForSimbody>
+	ReduceDynamics<solid_dynamics::TotalForceForSimBody, BodyPartByParticle>
 		force_on_tethered_spot(fish_head, MBsystem, tethered_spot, force_on_bodies, integ);
-	SimpleDynamics<solid_dynamics::ConstraintBySimBody, SolidBodyPartForSimbody>
+	SimpleDynamics<solid_dynamics::ConstraintBySimBody, BodyPartByParticle>
 		constraint_tethered_spot(fish_head, MBsystem, tethered_spot, force_on_bodies, integ);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
