@@ -102,7 +102,7 @@ namespace SPH
 		template <class DynamicsIdentifier, typename... Args>
 		SimpleDynamics(DynamicsIdentifier &identifier, Args &&...args)
 			: LocalDynamicsType(identifier, std::forward<Args>(args)...),
-			  BaseDynamics<ReturnType>(), dynamics_range_(identifier.getDynamicsRange()){};
+			  BaseDynamics<void>(), dynamics_range_(identifier.getDynamicsRange())
 		{
 			static_assert(!has_initialize<LocalDynamicsType>::value &&
 							  !has_interaction<LocalDynamicsType>::value,

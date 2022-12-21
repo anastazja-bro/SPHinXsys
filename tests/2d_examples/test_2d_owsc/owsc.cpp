@@ -66,13 +66,13 @@ int main()
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationWithWall> viscous_acceleration(water_block_complex);
 	/** Inflow boundary condition. */
 	BodyRegionByCell damping_buffer(water_block, makeShared<MultiPolygonShape>(createDampingBufferShape()));
-	SimpleDynamics<fluid_dynamics::DampingBoundaryCondition, BodyRegionByCell> damping_wave(damping_buffer);
+	SimpleDynamics<fluid_dynamics::DampingBoundaryCondition, BodyPartByCell> damping_wave(damping_buffer);
 	/** Fluid force on flap. */
 	InteractionDynamics<solid_dynamics::FluidViscousForceOnSolid> viscous_force_on_solid(flap_contact);
 	InteractionDynamics<solid_dynamics::FluidForceOnSolidUpdate> fluid_force_on_flap(flap_contact, viscous_force_on_solid);
 	/** constrain region of the part of wall boundary. */
 	BodyRegionByParticle wave_maker(wall_boundary, makeShared<MultiPolygonShape>(createWaveMakerShape()));
-	SimpleDynamics<WaveMaking, BodyRegionByParticle> wave_making(wave_maker);
+	SimpleDynamics<WaveMaking, BodyPartByParticle> wave_making(wave_maker);
 	//----------------------------------------------------------------------
 	//	Define the multi-body system
 	//----------------------------------------------------------------------

@@ -287,7 +287,7 @@ int main(int ac, char *av[])
 	/** Inflow boundary condition. */
 	BodyAlignedBoxByCell inflow_buffer(
 		water_block, makeShared<AlignedBoxShape>(Transform2d(Vec2d(buffer_translation)), buffer_halfsize));
-	SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>, BodyAlignedBoxByCell> parabolic_inflow(inflow_buffer, 0.3);
+	SimpleDynamics<fluid_dynamics::InflowVelocityCondition<InflowVelocity>, BodyPartByCell> parabolic_inflow(inflow_buffer, 0.3);
 	//----------------------------------------------------------------------
 	//	Algorithms of FSI.
 	//----------------------------------------------------------------------
