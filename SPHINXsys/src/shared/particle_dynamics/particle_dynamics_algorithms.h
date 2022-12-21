@@ -144,10 +144,10 @@ namespace SPH
 		DynamicsRange &dynamics_range_;
 
 	public:
-		template <class DerivedDynamicsRange, typename... Args>
-		ReduceDynamics(DerivedDynamicsRange &derived_dynamics_range, Args &&...args)
-			: LocalDynamicsType(derived_dynamics_range, std::forward<Args>(args)...),
-			  BaseDynamics<ReturnType>(), dynamics_range_(derived_dynamics_range){};
+		template <class BodyRelationType, typename... Args>
+		ReduceDynamics(BodyRelationType &body_relation, Args &&...args)
+			: LocalDynamicsType(body_relation, std::forward<Args>(args)...),
+			  BaseDynamics<ReturnType>(), dynamics_range_(body_relation.getDynamicsRange()){};
 		virtual ~ReduceDynamics(){};
 
 		using ReduceReturnType = ReturnType;
