@@ -167,6 +167,23 @@ namespace SPH
 	};
 
 	/**
+	 * @class DampingPairwiseInnerVariableCoefficient
+	 * @brief Damping with constant coefficient.
+	 */
+	template <typename SteadySolutionCheckType>
+	class DampingSteadyCheckVariableCoefficient : public SteadySolutionCheckType
+	{
+	public:
+		template <class BodyRelationType, typename... Args>
+		DampingSteadyCheckVariableCoefficient(BodyRelationType &body_relation,
+											  const std::string &coefficient_name, Args &&...args);
+		virtual ~DampingSteadyCheckVariableCoefficient(){};
+		bool reduce(size_t index_i, Real dt = 0.0);
+
+	protected:
+		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+	};
+	/**
 	 * @class DampingCoefficientEvolution
 	 * @brief Only works for scalar variable and coefficient.
 	 * TODO: to be generalized for different data type
@@ -194,8 +211,8 @@ namespace SPH
 												public DataDelegateContact<BaseParticles, SolidParticles>
 	{
 	public:
-		DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation, 
-									const std::string &variable_name, const std::string &coefficient_name);
+		DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
+											const std::string &variable_name, const std::string &coefficient_name);
 		virtual ~DampingCoefficientEvolutionFromWall(){};
 		void interaction(size_t index_i, Real dt);
 

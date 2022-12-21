@@ -452,5 +452,23 @@ namespace SPH
 			DampingAlgorithmType::parallel_exec(dt);
 	}
 	//=================================================================================================//
+	template <typename SteadySolutionCheckType>
+	template <class BodyRelationType, typename... Args>
+	DampingSteadyCheckVariableCoefficient<SteadySolutionCheckType>::
+		DampingSteadyCheckVariableCoefficient(BodyRelationType &body_relation,
+											  const std::string &coefficient_name, Args &&...args)
+		: SteadySolutionCheckType(body_relation, std::forward<Args>(args)...),
+		  eta_(*this->particles_->template getVariableByName<Real>(coefficient_name)) {}
+	//=================================================================================================//
+	template <typename SteadySolutionCheckType>
+	bool DampingSteadyCheckVariableCoefficient<SteadySolutionCheckType>::
+		reduce(size_t index_i, Real dt)
+	{
+		return this->checkCriterion(this->Residue(index_i,
+												  [&](size_t i, size_t j)
+												  { return 0.5 * (eta_[i] + eta_[j]); }),
+									dt);
+	}
+	//=================================================================================================//
 }
 #endif // PARTICLE_DYNAMICS_DISSIPATION_HPP

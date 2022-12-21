@@ -346,48 +346,77 @@ namespace SPH
 	};
 
 	/**
-	 * @class SteadySolutionCheck
+	 * @class SteadySolutionCheckInner
 	 * @brief check whether a variable has reached a steady state
 	 */
-	template <typename DataType>
-	class SteadySolutionCheck : public LocalDynamicsReduce<bool, ReduceAND>,
-								public GeneralDataDelegateSimple
+	template <class DifferentialOperatorType>
+	class SteadySolutionCheckInner : public LocalDynamicsReduce<bool, ReduceAND>,
+									 public GeneralDataDelegateInner
 	{
 	protected:
+		using DataType = typename DifferentialOperatorType::VariableType;
+		StdLargeVec<DataType> &variable_;
+		DifferentialOperatorType operator_;
 		DataType steady_reference_;
 		const Real criterion_ = 1.0e-6;
 
-		StdLargeVec<DataType> &variable_, variable_temp_;
-
-		bool checkSteady(const Real &increment)
+		bool checkCriterion(const Real &residue, Real dt)
 		{
-			return increment * increment / steady_reference_ / steady_reference_ < criterion_;
+			return residue * residue * dt * dt / steady_reference_ / steady_reference_ < criterion_;
 		};
 
 		template <typename IncrementDatatype>
-		bool checkSteady(const IncrementDatatype &increment)
+		bool checkCriterion(const IncrementDatatype &residue, Real dt)
 		{
-			return increment.squaredNorm() / steady_reference_.squaredNorm() < criterion_;
+			return residue.squaredNorm() * dt * dt / steady_reference_.squaredNorm() < criterion_;
+		};
+
+		template <class OperatorCoefficient>
+		DataType Residue(size_t index_i, const OperatorCoefficient &coefficient)
+		{
+			return operator_(index_i, inner_configuration_[index_i], variable_, coefficient);
 		};
 
 	public:
-		SteadySolutionCheck(SPHBody &sph_body, const std::string &variable_name, const DataType &steady_reference)
-			: LocalDynamicsReduce<bool, ReduceAND>(sph_body, true),
-			  GeneralDataDelegateSimple(sph_body), steady_reference_(steady_reference),
-			  variable_(*particles_->getVariableByName<DataType>(variable_name))
-		{
-			particles_->registerVariable(variable_temp_, "Temporary" + variable_name,
-										 [&](size_t index_i)
-										 { return variable_[index_i]; });
-		};
-		virtual ~SteadySolutionCheck(){};
+		SteadySolutionCheckInner(BaseInnerRelation &inner_relation, const std::string &variable_name, const DataType &steady_reference)
+			: LocalDynamicsReduce<bool, ReduceAND>(sph_body_, true),
+			  GeneralDataDelegateInner(inner_relation), steady_reference_(steady_reference),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name)),
+			  operator_(variable_){};
+		virtual ~SteadySolutionCheckInner(){};
+	};
 
-		bool reduce(size_t index_i, Real dt)
+	template <class DifferentialOperatorType>
+	class SteadySolutionCheckComplex : public SteadySolutionCheckInner<DifferentialOperatorType>,
+									   public GeneralDataDelegateContact
+	{
+	protected:
+		using DataType = typename DifferentialOperatorType::VariableType;
+		StdVec<StdLargeVec<DataType> *> contact_variable_;
+
+		template <class OperatorCoefficient>
+		DataType Residue(size_t index_i, const OperatorCoefficient &coefficient)
 		{
-			DataType increment = variable_[index_i] - variable_temp_[index_i];
-			variable_temp_[index_i] = variable_[index_i];
-			return checkSteady(increment);
+			DataType residue = SteadySolutionCheckInner<DifferentialOperatorType>::Residue(index_i, coefficient);
+
+			for (size_t k = 0; k < contact_configuration_.size(); ++k)
+			{
+				residue += this->operator_(index_i, (*contact_configuration_[k])[index_i], *(contact_variable_[k]), coefficient);
+			}
+			return residue;
 		};
+
+	public:
+		SteadySolutionCheckComplex(ComplexRelation &complex_relation, const std::string &variable_name, const DataType &steady_reference)
+			: SteadySolutionCheckInner<DifferentialOperatorType>(complex_relation.getInnerRelation(), variable_name, steady_reference),
+			  GeneralDataDelegateContact(complex_relation.getContactRelation())
+		{
+			for (size_t k = 0; k != contact_particles_.size(); ++k)
+			{
+				contact_variable_.push_back(contact_particles_[k]->template getVariableByName<DataType>(variable_name));
+			}
+		};
+		virtual ~SteadySolutionCheckComplex(){};
 	};
 }
 #endif // GENERAL_DYNAMICS_H
