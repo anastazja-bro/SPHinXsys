@@ -30,6 +30,7 @@
 #pragma once
 
 #include "general_dynamics.h"
+#include "general_operators.h"
 #include "general_bounding.h"
 #include "general_interpolation.h"
 #include "general_dynamics_refinement.h"
