@@ -60,6 +60,7 @@ namespace SPH
 				wall_vel_ave_.push_back(FluidWallData::contact_particles_[k]->AverageVelocity());
 				wall_acc_ave_.push_back(FluidWallData::contact_particles_[k]->AverageAcceleration());
 				wall_n_.push_back(&(FluidWallData::contact_particles_[k]->n_));
+				wall_L_.push_back(FluidWallData::contact_particles_[k]->getVariableByName<Matd>("WeightedCorrectionMatrix"));
 			}
 		}
 		//=================================================================================================//
@@ -239,6 +240,45 @@ namespace SPH
 				}
 			}
 			this->drho_dt_[index_i] += density_change_rate * this->rho_[index_i];
+		}
+		//=================================================================================================//
+		template <class BaseIntegration1stHalfCorrectType>
+		void BaseIntegration1stHalfCorrectWithWall<BaseIntegration1stHalfCorrectType>::interaction(size_t index_i, Real dt)
+		{
+			BaseIntegration1stHalfCorrectType::interaction(index_i, dt);
+
+			Vecd acc_prior_i = computeNonConservativeAcceleration(index_i);
+
+			Vecd acceleration = Vecd::Zero();
+			Real rho_dissipation(0);
+			for (size_t k = 0; k < FluidWallData::contact_configuration_.size(); ++k)
+			{
+				StdLargeVec<Vecd>& vel_ave_k = *(this->wall_vel_ave_[k]);
+				StdLargeVec<Vecd>& acc_ave_k = *(this->wall_acc_ave_[k]);
+				StdLargeVec<Vecd>& n_k = *(this->wall_n_[k]);
+				StdLargeVec<Matd>& L_k = *(this->wall_L_[k]);
+				Neighborhood& wall_neighborhood = (*FluidWallData::contact_configuration_[k])[index_i];
+				for (size_t n = 0; n != wall_neighborhood.current_size_; ++n)
+				{
+					size_t index_j = wall_neighborhood.j_[n];
+					Vecd& e_ij = wall_neighborhood.e_ij_[n];
+					Real dW_ijV_j = wall_neighborhood.dW_ijV_j_[n];
+					Real r_ij = wall_neighborhood.r_ij_[n];
+
+					Real face_wall_external_acceleration = (acc_prior_i - acc_ave_k[index_j]).dot(-e_ij);
+					Real p_in_wall = this->p_[index_i] + this->rho_[index_i] * r_ij * SMAX(0.0, face_wall_external_acceleration);
+					acceleration -= (this->p_[index_i] * this->L_[index_i] + p_in_wall * L_k[index_j]) * e_ij * dW_ijV_j;
+					rho_dissipation += this->riemann_solver_.DissipativeUJump(this->p_[index_i] - p_in_wall) * dW_ijV_j;
+				}
+			}
+			this->acc_[index_i] += acceleration / this->rho_[index_i];
+			this->drho_dt_[index_i] += rho_dissipation * this->rho_[index_i];
+		}
+		//=================================================================================================//
+		template <class BaseIntegration1stHalfCorrectType>
+		Vecd BaseIntegration1stHalfCorrectWithWall<BaseIntegration1stHalfCorrectType>::computeNonConservativeAcceleration(size_t index_i)
+		{
+			return this->acc_prior_[index_i];
 		}
 		//=================================================================================================//
 	}

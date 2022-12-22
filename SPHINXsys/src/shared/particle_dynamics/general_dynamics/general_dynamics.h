@@ -304,5 +304,43 @@ namespace SPH
 
 		Real reduce(size_t index_i, Real dt = 0.0);
 	};
+
+	/**
+	* @class CorrectConfiguration
+	*/
+	class GlobalCorrectConfigurationInner : public LocalDynamics, public GeneralDataDelegateInner
+	{
+	public:
+		explicit GlobalCorrectConfigurationInner(BaseInnerRelation& inner_relation);
+		virtual ~GlobalCorrectConfigurationInner() {};
+
+
+	protected:
+		StdLargeVec<Real>& Vol_;
+		StdLargeVec<Matd> A_, L_;
+		void interaction(size_t index_i, Real dt = 0.0);
+	};
+
+	class GlobalCorrectionMatrixComplex : public GlobalCorrectConfigurationInner, public GeneralDataDelegateContact
+	{
+	public:
+		GlobalCorrectionMatrixComplex(ComplexRelation& complex_relation)
+			: GlobalCorrectConfigurationInner(complex_relation.getInnerRelation()),
+			GeneralDataDelegateContact(complex_relation.getContactRelation())
+		{
+			for (size_t k = 0; k != contact_particles_.size(); ++k)
+			{
+				contact_mass_.push_back(&(contact_particles_[k]->mass_));
+				contact_Vol_.push_back(&(contact_particles_[k]->Vol_));
+			}
+		};
+		virtual ~GlobalCorrectionMatrixComplex() {};
+
+	protected:
+		StdVec<StdLargeVec<Real>*> contact_Vol_;
+		StdVec<StdLargeVec<Real>*> contact_mass_;
+
+		void interaction(size_t index_i, Real dt = 0.0);
+	};
 }
 #endif // GENERAL_DYNAMICS_H

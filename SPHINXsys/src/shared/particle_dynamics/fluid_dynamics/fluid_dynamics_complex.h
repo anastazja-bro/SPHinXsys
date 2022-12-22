@@ -66,6 +66,7 @@ namespace SPH
 			StdVec<Real> wall_inv_rho0_;
 			StdVec<StdLargeVec<Real> *> wall_mass_;
 			StdVec<StdLargeVec<Vecd> *> wall_vel_ave_, wall_acc_ave_, wall_n_;
+			StdVec<StdLargeVec<Matd> *> wall_L_;
 		};
 
 		/**
@@ -273,6 +274,26 @@ namespace SPH
 			virtual ~Oldroyd_BIntegration2ndHalfWithWall(){};
 			void interaction(size_t index_i, Real dt = 0.0);
 		};
+		/**
+        * @class BaseIntegration1stHalfCorrectWithWall
+        * @brief  template class pressure relaxation scheme together with wall boundary
+        */
+		template <class BaseIntegration1stHalfCorrectType>
+		class BaseIntegration1stHalfCorrectWithWall : public InteractionWithWall<BaseIntegration1stHalfCorrectType>
+		{
+		public:
+			template <typename... Args>
+			BaseIntegration1stHalfCorrectWithWall(Args &&...args)
+				: InteractionWithWall<BaseIntegration1stHalfCorrectType>(std::forward<Args>(args)...) {};
+			virtual ~BaseIntegration1stHalfCorrectWithWall() {};
+			void interaction(size_t index_i, Real dt = 0.0);
+
+		protected:
+			virtual Vecd computeNonConservativeAcceleration(size_t index_i) override;
+		};
+
+		using Integration1stHalfCorrectWithWall = BaseIntegration1stHalfCorrectWithWall<Integration1stHalfCorrect>;
+		using Integration1stHalfRiemannCorrectWithWall = BaseIntegration1stHalfCorrectWithWall<Integration1stHalfRiemannCorrect>;
 	}
 }
 #endif // FLUID_DYNAMICS_COMPLEX_H

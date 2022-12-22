@@ -359,6 +359,32 @@ namespace SPH
 			StdLargeVec<Matd> &tau_, &dtau_dt_;
 			Real mu_p_, lambda_;
 		};
+
+		/**
+		* @class BaseIntegration1stHalfCorrect
+		* @brief Template class for pressure relaxation scheme with the Riemann solver
+		* as template variable
+		*/
+		template <class RiemannSolverType>
+		class BaseIntegration1stHalfCorrect : public BaseIntegration
+		{
+		public:
+			explicit BaseIntegration1stHalfCorrect(BaseInnerRelation& inner_relation);
+			virtual ~BaseIntegration1stHalfCorrect() {};
+			RiemannSolverType riemann_solver_;
+			void initialization(size_t index_i, Real dt = 0.0);
+			void interaction(size_t index_i, Real dt = 0.0);
+			void update(size_t index_i, Real dt = 0.0);
+
+		protected:
+			virtual Vecd computeNonConservativeAcceleration(size_t index_i);
+			StdLargeVec<Matd> p_L_;
+			StdLargeVec<Matd>& L_;
+		};
+		using Integration1stHalfCorrect = BaseIntegration1stHalfCorrect<NoRiemannSolver>;
+		/** define the mostly used pressure relaxation scheme using Riemann solver */
+		using Integration1stHalfRiemannCorrect = BaseIntegration1stHalfCorrect<AcousticRiemannSolver>;
+		using Integration1stHalfDissipativeRiemannCorrect = BaseIntegration1stHalfCorrect<DissipativeRiemannSolver>;
 	}
 }
 #endif // FLUID_DYNAMICS_INNER_H
