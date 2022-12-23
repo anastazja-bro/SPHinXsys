@@ -32,7 +32,6 @@
 
 #include "base_data_package.h"
 #include "sph_data_containers.h"
-#include "neighborhood_functions.h"
 #include "base_particle_dynamics.h"
 
 namespace SPH

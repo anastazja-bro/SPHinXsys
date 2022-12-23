@@ -22,6 +22,7 @@ BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 //	Global parameters for physics state variables.
 //----------------------------------------------------------------------
 std::string variable_name = "Phi";
+std::string residue_name = "LaplacianResidue";
 Real lower_temperature = 300.0;
 Real upper_temperature = 350.0;
 Real stead_reference = upper_temperature - lower_temperature;
@@ -130,6 +131,9 @@ int main()
 	diffusion_body.addBodyState<Real>(thermal_diffusion_rate, coefficient_name);
 	diffusion_body.addBodyStateForRecording<Real>(coefficient_name);
 	diffusion_body.addBodyStateToRestart<Real>(coefficient_name);
+	StdLargeVec<Real> laplacian_residue;
+	diffusion_body.addBodyState<Real>(laplacian_residue, residue_name);
+	diffusion_body.addBodyStateForRecording<Real>(residue_name);
 
 	SolidBody isothermal_boundaries(sph_system, makeShared<IsothermalBoundaries>("IsothermalBoundaries"));
 	isothermal_boundaries.defineParticlesAndMaterial<SolidParticles, Solid>();
@@ -152,8 +156,8 @@ int main()
 	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
 	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
-	ReduceDynamics<DampingSteadyCheckVariableCoefficient<SteadySolutionCheckComplex<Laplacian<Real>>>>
-		check_steady_solution(diffusion_body_complex, coefficient_name, variable_name, stead_reference);
+	InteractionDynamics<OperatorAlgebraAverageCoefficient<Real, BaseLaplacianInner<Real>>>
+		thermal_equation_residue(diffusion_body_complex.getInnerRelation(), coefficient_name, variable_name, residue_name);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -177,6 +181,7 @@ int main()
 	boundary_constraint.parallel_exec();
 	coefficient_distribution.parallel_exec();
 	constrain_total_coefficient.setupInitialScalarAmount();
+	thermal_equation_residue.parallel_exec();
 	//----------------------------------------------------------------------
 	//	Load restart file if necessary.
 	//----------------------------------------------------------------------
@@ -229,13 +234,8 @@ int main()
 			}
 		}
 
+		thermal_equation_residue.parallel_exec();
 		write_states.writeToFile(ite);
-		if (check_steady_solution.parallel_exec())
-		{
-			std::cout << "Convergence is achieved at Time: " << GlobalStaticVariables::physical_time_ << "\n";
-			damping_coefficient_evolution.parallel_exec(dt);
-			constrain_total_coefficient.parallel_exec();
-		}
 	}
 
 	tick_count t4 = tick_count::now();
