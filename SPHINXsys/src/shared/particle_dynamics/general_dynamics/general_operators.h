@@ -121,7 +121,7 @@ namespace SPH
         virtual ~BaseOperatorVariableCoefficient(){};
 
     protected:
-        StdLargeVec<CoefficientType> coefficient_;
+        StdLargeVec<CoefficientType> &coefficient_;
     };
 
     /**

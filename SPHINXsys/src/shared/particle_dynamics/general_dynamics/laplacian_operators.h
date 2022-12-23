@@ -94,7 +94,7 @@ namespace SPH
                            (this->in_variable_[index_i] - in_variable_k[index_j]) *
                            neighborhood.dW_ijV_j_[n] / neighborhood.r_ij_[n];
                 }
-                this->out_variable_[index_i] = sum;
+                this->out_variable_[index_i] += sum;
             }
         };
     };

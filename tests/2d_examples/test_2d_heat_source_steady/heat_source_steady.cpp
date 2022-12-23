@@ -156,8 +156,10 @@ int main()
 	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
 	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
-	InteractionDynamics<OperatorAlgebraAverageCoefficient<Real, BaseLaplacianInner<Real>>>
-		thermal_equation_residue(diffusion_body_complex.getInnerRelation(), coefficient_name, variable_name, residue_name);
+	InteractionDynamics<InteractionComplexInnerPrior<
+		OperatorAlgebraAverageCoefficient<Real, BaseLaplacianInner<Real>>,
+		OperatorOneSideCoefficient<Real, BaseLaplacianContact<Real>>>>
+		thermal_equation_residue(diffusion_body_complex, coefficient_name, variable_name, residue_name);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -166,10 +168,10 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingComplex<DampingPairwiseInnerVariableCoefficient<Real>,
-									DampingPairwiseFromWallVariableCoefficient<Real>>>
+	InteractionSplit<InteractionComplexContactPrior<DampingPairwiseInnerVariableCoefficient<Real>,
+													DampingPairwiseFromWallVariableCoefficient<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
-	InteractionSplit<DampingComplex<DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
+	InteractionSplit<InteractionComplexContactPrior<DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
 		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
