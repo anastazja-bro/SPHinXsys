@@ -157,8 +157,8 @@ int main()
 	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
 	InteractionDynamics<InteractionComplexInnerPrior<
-		OperatorAlgebraAverageCoefficient<Real, BaseLaplacianInner<Real>>,
-		OperatorOneSideCoefficient<Real, BaseLaplacianContact<Real>>>>
+		OperatorAlgebraAverageCoefficient<Real, LaplacianInner<Real>>,
+		OperatorOneSideCoefficient<Real, LaplacianContact<Real>>>>
 		thermal_equation_residue(diffusion_body_complex, coefficient_name, variable_name, residue_name);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -168,10 +168,12 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<InteractionComplexContactPrior<DampingPairwiseInnerVariableCoefficient<Real>,
-													DampingPairwiseFromWallVariableCoefficient<Real>>>
+	InteractionSplit<InteractionComplexContactPrior<
+		DampingPairwiseInnerVariableCoefficient<Real>,
+		DampingPairwiseFromWallVariableCoefficient<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
-	InteractionSplit<InteractionComplexContactPrior<DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
+	InteractionSplit<InteractionComplexContactPrior<
+		DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
 		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
@@ -219,16 +221,18 @@ int main()
 		while (relaxation_time < Observe_time)
 		{
 			thermal_source.parallel_exec(dt);
+			
+			if (ite % 100 == 0)
+			{
+				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
+				thermal_equation_residue.parallel_exec();
+			}
+
 			implicit_heat_transfer_solver.parallel_exec(dt);
 
 			ite++;
 			relaxation_time += dt;
 			GlobalStaticVariables::physical_time_ += dt;
-
-			if (ite % 100 == 0)
-			{
-				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
-			}
 
 			if (ite % restart_output_interval == 0)
 			{
@@ -236,7 +240,6 @@ int main()
 			}
 		}
 
-		thermal_equation_residue.parallel_exec();
 		write_states.writeToFile(ite);
 	}
 

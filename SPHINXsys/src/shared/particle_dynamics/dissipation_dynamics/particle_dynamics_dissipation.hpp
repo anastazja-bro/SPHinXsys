@@ -194,7 +194,6 @@ namespace SPH
 
 				error_and_parameters.error_ -= variable_derivative * parameter_b;
 				error_and_parameters.a_ += parameter_b;
-				error_and_parameters.c_ += parameter_b * parameter_b;
 			}
 		}
 		return error_and_parameters;

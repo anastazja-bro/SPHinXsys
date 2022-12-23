@@ -304,37 +304,6 @@ namespace SPH
 	};
 
 	/**
-	 * @class DampingComplex
-	 * @brief Damping with wall by which the wall velocity is not updated
-	 * and the mass of wall particle is not considered.
-	 */
-	template <class BaseDampingInnerType, class BaseDampingContactType>
-	class DampingComplex : public LocalDynamics
-	{
-		BaseDampingInnerType inner_interaction_;
-		BaseDampingContactType contact_interaction_;
-
-	public:
-		template <typename... Args>
-		DampingComplex(BaseInnerRelation &inner_relation,
-					   BaseContactRelation &contact_relation, Args &&...args)
-			: LocalDynamics(inner_relation.sph_body_),
-			  inner_interaction_(inner_relation, std::forward<Args>(args)...),
-			  contact_interaction_(contact_relation, std::forward<Args>(args)...){};
-		template <typename... Args>
-		DampingComplex(ComplexRelation &complex_wall_relation, Args &&...args)
-			: DampingComplex(complex_wall_relation.getInnerRelation(),
-							 complex_wall_relation.getContactRelation(),
-							 std::forward<Args>(args)...){};
-		virtual ~DampingComplex(){};
-		void interaction(size_t index_i, Real dt = 0.0)
-		{
-			contact_interaction_.interaction(index_i, dt);
-			inner_interaction_.interaction(index_i, dt);
-		};
-	};
-
-	/**
 	 * @class DampingWithRandomChoice
 	 * @brief A random choice method for obtaining static equilibrium state
 	 * Note that, if periodic boundary condition is applied,

@@ -361,5 +361,45 @@ namespace SPH
 		Real inital_total_;
 		Real increment_;
 	};
+
+	/**
+	 * @class SteadySolutionCheck
+	 * @brief check whether a variable has reached a steady state
+	 */
+	template <typename DataType>
+	class SteadySolutionCheck : public LocalDynamicsReduce<bool, ReduceAND>,
+								public GeneralDataDelegateSimple
+	{
+	protected:
+		DataType steady_reference_;
+		const Real criterion_;
+
+		StdLargeVec<DataType> &residue_;
+
+		bool checkSteady(const Real &increment)
+		{
+			return increment * increment / steady_reference_ / steady_reference_ < criterion_;
+		};
+
+		template <typename IncrementDatatype>
+		bool checkSteady(const IncrementDatatype &increment)
+		{
+			return increment.squaredNorm() / steady_reference_.squaredNorm() < criterion_;
+		};
+
+	public:
+		SteadySolutionCheck(SPHBody &sph_body, const std::string &residue_name,
+							const DataType &steady_reference, Real criterion)
+			: LocalDynamicsReduce<bool, ReduceAND>(sph_body, true),
+			  GeneralDataDelegateSimple(sph_body),
+			  steady_reference_(steady_reference), criterion_(criterion),
+			  residue_(*particles_->getVariableByName<DataType>(residue_name)){};
+		virtual ~SteadySolutionCheck(){};
+
+		bool reduce(size_t index_i, Real dt)
+		{
+			return checkSteady(variable_[index_i] * dt);
+		};
+	};
 }
 #endif // GENERAL_DYNAMICS_H

@@ -34,18 +34,18 @@
 namespace SPH
 {
     /**
-     * @class BaseLaplacianInner
+     * @class LaplacianInner
      * @brief Base class for computing Laplacian operators with inner relation
      * This can be used for computing dissipative terms
      */
     template <typename DataType>
-    class BaseLaplacianInner : public BaseOperatorInner<DataType, DataType>
+    class LaplacianInner : public BaseOperatorInner<DataType, DataType>
     {
     public:
-        BaseLaplacianInner(BaseInnerRelation &inner_relation,
+        LaplacianInner(BaseInnerRelation &inner_relation,
                            const std::string &in_variable_name, const std::string &out_variable_name)
             : BaseOperatorInner<DataType, DataType>(inner_relation, in_variable_name, out_variable_name){};
-        virtual ~BaseLaplacianInner(){};
+        virtual ~LaplacianInner(){};
 
     protected:
         template <typename CoefficientFunction>
@@ -65,18 +65,18 @@ namespace SPH
     };
 
     /**
-     * @class BaseLaplacianContact
+     * @class LaplacianContact
      * @brief Base class for computing Laplacian operators with contact relation
      * This can be used for computing dissipative terms
      */
     template <typename DataType>
-    class BaseLaplacianContact : public BaseOperatorContact<DataType, DataType>
+    class LaplacianContact : public BaseOperatorContact<DataType, DataType>
     {
     public:
-        BaseLaplacianContact(BaseContactRelation &contact_relation,
+        LaplacianContact(BaseContactRelation &contact_relation,
                              const std::string &in_variable_name, const std::string &out_variable_name)
             : BaseOperatorContact<DataType, DataType>(contact_relation, in_variable_name, out_variable_name){};
-        virtual ~BaseLaplacianContact(){};
+        virtual ~LaplacianContact(){};
 
     protected:
         template <typename CoefficientFunction>
