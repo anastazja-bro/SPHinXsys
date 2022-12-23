@@ -32,6 +32,17 @@
 
 namespace SPH
 {
+	template <typename Datatype>
+	inline Real getSquaredNorm(const Datatype &variable)
+	{
+		return variable.squaredNorm();
+	};
+
+	template<>
+	inline Real getSquaredNorm<Real>(const Real &variable)
+	{
+		return variable * variable;
+	};
 
 	SimTK::Vec2 EigenToSimTK(const Vec2d &eigen_vector);
 	SimTK::Vec3 EigenToSimTK(const Vec3d &eigen_vector);

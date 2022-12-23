@@ -160,6 +160,7 @@ int main()
 		OperatorAlgebraAverageCoefficient<Real, LaplacianInner<Real>>,
 		OperatorOneSideCoefficient<Real, LaplacianContact<Real>>>>
 		thermal_equation_residue(diffusion_body_complex, coefficient_name, variable_name, residue_name);
+	ReduceDynamics<MaximumNorm<Real>> maximum_laplacian_residue(diffusion_body, residue_name);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -221,11 +222,12 @@ int main()
 		while (relaxation_time < Observe_time)
 		{
 			thermal_source.parallel_exec(dt);
-			
+
 			if (ite % 100 == 0)
 			{
 				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
 				thermal_equation_residue.parallel_exec();
+				std::cout << "Maximum Laplacian Residue is " << maximum_laplacian_residue.parallel_exec() << "\n";
 			}
 
 			implicit_heat_transfer_solver.parallel_exec(dt);
