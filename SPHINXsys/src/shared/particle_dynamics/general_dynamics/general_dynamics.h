@@ -372,9 +372,9 @@ namespace SPH
 	{
 	protected:
 		DataType steady_reference_;
-		const Real criterion_;
+		const Real criterion_ = 1.0e-6;
 
-		StdLargeVec<DataType> &residue_;
+		StdLargeVec<DataType> &variable_, variable_temp_;
 
 		bool checkSteady(const Real &increment)
 		{
@@ -388,18 +388,23 @@ namespace SPH
 		};
 
 	public:
-		SteadySolutionCheck(SPHBody &sph_body, const std::string &residue_name,
-							const DataType &steady_reference, Real criterion)
+		SteadySolutionCheck(SPHBody &sph_body, const std::string &variable_name, const DataType &steady_reference)
 			: LocalDynamicsReduce<bool, ReduceAND>(sph_body, true),
-			  GeneralDataDelegateSimple(sph_body),
-			  steady_reference_(steady_reference), criterion_(criterion),
-			  residue_(*particles_->getVariableByName<DataType>(residue_name)){};
+			  GeneralDataDelegateSimple(sph_body), steady_reference_(steady_reference),
+			  variable_(*particles_->getVariableByName<DataType>(variable_name))
+		{
+			particles_->registerVariable(variable_temp_, "Temporary" + variable_name,
+										 [&](size_t index_i)
+										 { return variable_[index_i]; });
+		};
 		virtual ~SteadySolutionCheck(){};
 
 		bool reduce(size_t index_i, Real dt)
 		{
-			return checkSteady(variable_[index_i] * dt);
+			DataType increment = variable_[index_i] - variable_temp_[index_i];
+			variable_temp_[index_i] = variable_[index_i];
+			return checkSteady(increment);
 		};
-	};
+	};	
 }
 #endif // GENERAL_DYNAMICS_H
