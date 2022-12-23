@@ -25,7 +25,7 @@
  * @brief 	Here are the classes for damping the magnitude of
  * 			any variables.
  * 			Note that, currently, these classes works only in single resolution.
- * @author	Chi ZHang and Xiangyu Hu
+ * @author	Bo Zhang, Chi ZHang and Xiangyu Hu
  */
 
 #ifndef PARTICLE_DYNAMICS_DISSIPATION_H
@@ -317,6 +317,43 @@ namespace SPH
 
 		virtual void exec(Real dt = 0.0) override;
 		virtual void parallel_exec(Real dt = 0.0) override;
+	};
+
+	template <typename VariableType>
+	struct ErrorAndParametersConserved
+	{
+		VariableType error_;
+		VariableType wall_flux_;
+		Real a_, c_, d_, e_;
+		ErrorAndParametersConserved() : error_(ZeroData<VariableType>::value),
+			                            wall_flux_(ZeroData<VariableType>::value),
+			                            a_(0), c_(0), d_(0), e_(0) {};
+	};
+
+	/**
+	 * @class DampingBySplittingAlgorithm
+	 * @brief A quantity damping by splitting scheme
+	 * this method modifies the quantity directly.
+	 * Note that, if periodic boundary condition is applied,
+	 * the parallelized version of the method requires the one using ghost particles
+	 * because the splitting partition only works in this case.
+	 */
+	template <typename VariableType>
+	class DampingByConservedSplittingInner : public LocalDynamics, public DissipationDataInner
+	{
+	protected:
+	public:
+		DampingByConservedSplittingInner(BaseInnerRelation& inner_relation, const std::string& variable_name, Real eta);
+		virtual ~DampingByConservedSplittingInner() {};
+		void interaction(size_t index_i, Real dt = 0.0);
+
+	protected:
+		Real eta_; /**< damping coefficient */
+		StdLargeVec<Real>& Vol_, & mass_;
+		StdLargeVec<VariableType>& variable_;
+
+		virtual ErrorAndParametersConserved<VariableType> computeErrorAndParameters(size_t index_i, Real dt = 0.0);
+		virtual void updateStates(size_t index_i, Real dt, const ErrorAndParametersConserved<VariableType>& error_and_parameters);
 	};
 }
 #endif // PARTICLE_DYNAMICS_DISSIPATION_H

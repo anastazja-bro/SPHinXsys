@@ -50,6 +50,7 @@ namespace SPH
 		Real Vol_i = Vol_[index_i];
 		VariableType &variable_i = variable_[index_i];
 		Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
 			size_t index_j = inner_neighborhood.j_[n];
@@ -450,6 +451,70 @@ namespace SPH
 	{
 		if (RandomChoice())
 			DampingAlgorithmType::parallel_exec(dt);
+	}
+	//=================================================================================================//
+	template <typename VariableType>
+	DampingByConservedSplittingInner<VariableType>::
+		DampingByConservedSplittingInner(BaseInnerRelation& inner_relation, 
+			const std::string& variable_name, Real eta)
+		:LocalDynamics(inner_relation.sph_body_),
+		DissipationDataInner(inner_relation), eta_(eta),
+		Vol_(particles_->Vol_), mass_(particles_->mass_),
+		variable_(*particles_->getVariableByName<VariableType>(variable_name)) {}
+	//=================================================================================================//
+	template <typename VariableType>
+	ErrorAndParametersConserved<VariableType>
+		DampingByConservedSplittingInner<VariableType>::computeErrorAndParameters(size_t index_i, Real dt)
+	{
+		Real Vol_i = Vol_[index_i];
+		Real mass_i = mass_[index_i];
+		VariableType& variable_i = variable_[index_i];
+		ErrorAndParametersConserved<VariableType> error_and_parameters;
+		Neighborhood& inner_neighborhood = inner_configuration_[index_i];
+		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+		{
+			size_t index_j = inner_neighborhood.j_[n];
+			
+			VariableType variable_derivative = (variable_i - variable_[index_j]);
+			Real parameter_b = 2.0 * eta_ * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+
+			error_and_parameters.error_ -= variable_derivative * parameter_b;
+			error_and_parameters.a_ += parameter_b;
+			error_and_parameters.c_ += parameter_b * parameter_b;
+			error_and_parameters.e_ += parameter_b * mass_[index_j];
+		}
+		error_and_parameters.a_ -= mass_i;
+		return error_and_parameters;
+	}
+	//=================================================================================================//
+	template <typename VariableType>
+	void DampingByConservedSplittingInner<VariableType>::
+		updateStates(size_t index_i, Real dt, const ErrorAndParametersConserved<VariableType>& error_and_parameters)
+	{
+		Real cofficient_a = error_and_parameters.a_ * error_and_parameters.a_ + error_and_parameters.c_ *
+			error_and_parameters.a_ * mass_[index_i] / error_and_parameters.e_;
+		VariableType parameter_i = error_and_parameters.error_ / (cofficient_a + TinyReal);
+		VariableType parameter_j = mass_[index_i] * error_and_parameters.a_ / error_and_parameters.e_ * parameter_i;
+
+		variable_[index_i] += parameter_i * error_and_parameters.a_;
+		Real Vol_i = Vol_[index_i];
+		VariableType& variable_i = variable_[index_i];
+		Neighborhood& inner_neighborhood = inner_configuration_[index_i];
+		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+		{
+			size_t index_j = inner_neighborhood.j_[n];
+			Real parameter_b = 2.0 * eta_ * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+
+			variable_[index_j] -= parameter_j * parameter_b;
+			error_ -= parameter_j * parameter_b;
+		}
+	}
+	//=================================================================================================//
+	template <typename VariableType>
+	void DampingByConservedSplittingInner<VariableType>::interaction(size_t index_i, Real dt)
+	{
+		ErrorAndParametersConserved<VariableType> error_and_parameters = computeErrorAndParameters(index_i, dt);
+		updateStates(index_i, dt, error_and_parameters);
 	}
 	//=================================================================================================//
 }

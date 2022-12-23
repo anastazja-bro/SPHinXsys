@@ -24,7 +24,7 @@ BoundingBox system_domain_bounds(Vec2d(-BW, -BW), Vec2d(L + BW, H + BW));
 std::string variable_name = "Phi";
 Real lower_temperature = 300.0;
 Real upper_temperature = 350.0;
-Real stead_reference = upper_temperature - lower_temperature;
+Real stead_reference = 1;
 Real heat_source = 100.0;
 //----------------------------------------------------------------------
 //	Global parameters for material properties or coefficient variables.
@@ -139,6 +139,7 @@ int main()
 	//	The contact map gives the topological connections between the bodies.
 	//	Basically the range of bodies to build neighbor particle lists.
 	//----------------------------------------------------------------------
+	InnerRelation diffusion_body_inner(diffusion_body);
 	ComplexRelation diffusion_body_complex(diffusion_body, {&isothermal_boundaries});
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
@@ -157,9 +158,10 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingComplex<DampingPairwiseInnerVariableCoefficient<Real>,
-									DampingPairwiseFromWallVariableCoefficient<Real>>>
-		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
+	/*InteractionSplit<DampingBySplittingInner<Real>>
+		implicit_heat_transfer_solver(diffusion_body_inner, variable_name, diffusion_coff);*/
+	InteractionSplit<DampingByConservedSplittingInner<Real>>
+		implicit_heat_transfer_solver(diffusion_body_inner, variable_name, diffusion_coff);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -203,8 +205,8 @@ int main()
 		Real relaxation_time = 0.0;
 		while (relaxation_time < Observe_time)
 		{
-			thermal_source.parallel_exec(dt);
-			implicit_heat_transfer_solver.parallel_exec(dt);
+			//thermal_source.parallel_exec(dt);
+			implicit_heat_transfer_solver.exec(dt);
 
 			ite++;
 			relaxation_time += dt;
