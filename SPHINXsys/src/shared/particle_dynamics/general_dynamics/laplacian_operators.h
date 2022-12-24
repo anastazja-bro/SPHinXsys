@@ -104,21 +104,21 @@ namespace SPH
     };
 
     /**
-     * @class LaplacianNearWall
+     * @class LaplacianFromWall
      * @brief Base class for computing Laplacian operators with contact relation
      * This can be used for computing dissipative terms
      */
     template <typename DataType, class CoefficientType>
-    class LaplacianNearWall : public OperatorNearBoundary<DataType, DataType, CoefficientType>
+    class LaplacianFromWall : public OperatorFromBoundary<DataType, DataType, CoefficientType>
     {
     public:
         template <typename CoefficientArg>
-        LaplacianNearWall(BaseContactRelation &contact_relation,
+        LaplacianFromWall(BaseContactRelation &contact_relation,
                           const std::string &in_variable_name, const std::string &out_variable_name,
                           const CoefficientArg &coefficient_arg)
-            : OperatorNearBoundary<DataType, DataType, CoefficientType>(
+            : OperatorFromBoundary<DataType, DataType, CoefficientType>(
                   contact_relation, in_variable_name, out_variable_name, coefficient_arg){};
-        virtual ~LaplacianNearWall(){};
+        virtual ~LaplacianFromWall(){};
 
         void interaction(size_t index_i, Real dt)
         {

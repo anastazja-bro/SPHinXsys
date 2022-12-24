@@ -162,15 +162,15 @@ namespace SPH
     };
 
     /**
-     * @class OperatorNearBoundary
+     * @class OperatorFromBoundary
      * @brief Base class for spatial operators with contact relation
      */
     template <typename InDataType, typename OutDataType, class CoefficientType>
-    class OperatorNearBoundary : public LocalDynamics, public DataDelegateContact<BaseParticles, BaseParticles>
+    class OperatorFromBoundary : public LocalDynamics, public DataDelegateContact<BaseParticles, BaseParticles>
     {
     public:
         template <typename CoefficientArg>
-        OperatorNearBoundary(BaseContactRelation &contact_relation,
+        OperatorFromBoundary(BaseContactRelation &contact_relation,
                              const std::string &in_variable_name, const std::string &out_variable_name,
                              const CoefficientArg &coefficient_arg)
             : LocalDynamics(contact_relation.sph_body_),
@@ -184,7 +184,7 @@ namespace SPH
                 contact_in_variable_.push_back(contact_particles_[k]->template getVariableByName<InDataType>(in_variable_name));
             }
         }
-        virtual ~OperatorNearBoundary(){};
+        virtual ~OperatorFromBoundary(){};
 
     protected:
         StdLargeVec<InDataType> &in_variable_;
@@ -197,7 +197,7 @@ namespace SPH
      * @class OperatorWithBoundary
      * @brief Base class for spatial operators with contact relation
      */
-    template <class BaseOperatorType, class OperatorNearBoundaryType>
+    template <class BaseOperatorType, class OperatorFromBoundaryType>
     class OperatorWithBoundary : public LocalDynamics
     {
     public:
@@ -228,7 +228,7 @@ namespace SPH
 
     protected:
         BaseOperatorType base_operator_;
-        OperatorNearBoundaryType operator_near_boundary_;
+        OperatorFromBoundaryType operator_near_boundary_;
     };
 }
 #endif // GENERAL_OPERATORS_H

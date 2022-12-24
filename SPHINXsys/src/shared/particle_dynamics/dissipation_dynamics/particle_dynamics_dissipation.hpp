@@ -199,34 +199,28 @@ namespace SPH
 		return error_and_parameters;
 	}
 	//=================================================================================================//
-	template <typename VariableType>
-	BaseDampingPairwiseInner<VariableType>::
-		BaseDampingPairwiseInner(BaseInnerRelation &inner_relation, const std::string &variable_name)
-		: LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
-		  Vol_(particles_->Vol_), mass_(particles_->mass_),
-		  variable_(*particles_->getVariableByName<VariableType>(variable_name)) {}
-	//=================================================================================================//
-	template <typename VariableType>
-	template <typename InterParticleCoefficient>
-	void BaseDampingPairwiseInner<VariableType>::
-		dampPairwiseInner(size_t index_i, Real dt, const InterParticleCoefficient &coefficient)
+	template <typename DataType,
+			  template <typename SourceDataType> class SourceType, class CoefficientType>
+	void BaseDampingPairwiseInner<DataType, SourceType, CoefficientType>::
+		interaction(size_t index_i, Real dt)
 	{
 		Real Vol_i = Vol_[index_i];
 		Real mass_i = mass_[index_i];
-		VariableType &variable_i = variable_[index_i];
+		DataType &variable_i = variable_[index_i];
+		variable_i += this->source_(index_i) * dt;
 		Real dt2 = dt * 0.5;
-		const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+		const Neighborhood &inner_neighborhood = this->inner_configuration_[index_i];
 		// forward sweep
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
 			size_t index_j = inner_neighborhood.j_[n];
 			Real mass_j = mass_[index_j];
 
-			VariableType variable_derivative = (variable_i - variable_[index_j]);
-			Real parameter_b = 2.0 * coefficient(index_i, index_j) *
+			DataType variable_derivative = (variable_i - variable_[index_j]);
+			Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
 							   inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / inner_neighborhood.r_ij_[n];
 
-			VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
+			DataType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
 			variable_i += increment * mass_j;
 			variable_[index_j] -= increment * mass_i;
 		}
@@ -237,143 +231,33 @@ namespace SPH
 			size_t index_j = inner_neighborhood.j_[n - 1];
 			Real mass_j = mass_[index_j];
 
-			VariableType variable_derivative = (variable_i - variable_[index_j]);
-			Real parameter_b = 2.0 * coefficient(index_i, index_j) *
+			DataType variable_derivative = (variable_i - variable_[index_j]);
+			Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
 							   inner_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / inner_neighborhood.r_ij_[n - 1];
 
-			VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
+			DataType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
 			variable_i += increment * mass_j;
 			variable_[index_j] -= increment * mass_i;
 		}
 	}
 	//=================================================================================================//
-	template <typename VariableType>
-	DampingPairwiseInner<VariableType>::
-		DampingPairwiseInner(BaseInnerRelation &inner_relation, const std::string &variable_name, Real eta)
-		: BaseDampingPairwiseInner<VariableType>(inner_relation, variable_name), eta_(eta) {}
-	//=================================================================================================//
-	template <typename VariableType>
-	void DampingPairwiseInner<VariableType>::interaction(size_t index_i, Real dt)
+	template <typename DataType, class CoefficientType>
+	void BaseDampingPairwiseFromWall<DataType, CoefficientType>::interaction(size_t index_i, Real dt)
 	{
-		this->dampPairwiseInner(index_i, dt,
-								[&](size_t i, size_t j)
-								{ return eta_; });
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	DampingPairwiseInnerVariableCoefficient<VariableType>::
-		DampingPairwiseInnerVariableCoefficient(BaseInnerRelation &inner_relation,
-												const std::string &variable_name, const std::string &coefficient_name)
-		: BaseDampingPairwiseInner<VariableType>(inner_relation, variable_name),
-		  eta_(*this->particles_->template getVariableByName<VariableType>(coefficient_name)) {}
-	//=================================================================================================//
-	template <typename VariableType>
-	void DampingPairwiseInnerVariableCoefficient<VariableType>::interaction(size_t index_i, Real dt)
-	{
-		this->dampPairwiseInner(index_i, dt,
-								[&](size_t i, size_t j)
-								{ return 0.5 * (eta_[i] + eta_[j]); });
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	BaseDampingPairwiseComplex<VariableType>::
-		BaseDampingPairwiseComplex(BaseInnerRelation &inner_relation,
-								   BaseContactRelation &contact_relation, const std::string &variable_name)
-		: BaseDampingPairwiseInner<VariableType>(inner_relation, variable_name),
-		  DissipationDataContact(contact_relation)
-	{
-		for (size_t k = 0; k != contact_particles_.size(); ++k)
-		{
-			contact_mass_.push_back(&(contact_particles_[k]->mass_));
-			contact_variable_.push_back(contact_particles_[k]->template getVariableByName<VariableType>(variable_name));
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	BaseDampingPairwiseComplex<VariableType>::
-		BaseDampingPairwiseComplex(ComplexRelation &complex_relation, const std::string &variable_name)
-		: BaseDampingPairwiseComplex(complex_relation.getInnerRelation(),
-									 complex_relation.getContactRelation(), variable_name) {}
-	//=================================================================================================//
-	template <typename VariableType>
-	template <typename InterParticleCoefficient>
-	void BaseDampingPairwiseComplex<VariableType>::
-		dampPairwiseContact(size_t index_i, Real dt, const InterParticleCoefficient &coefficient)
-	{
-		Real Vol_i = this->Vol_[index_i];
-		Real mass_i = this->mass_[index_i];
-		VariableType &variable_i = this->variable_[index_i];
+		Real Vol_i = Vol_[index_i];
+		Real mass_i = mass_[index_i];
+		DataType &variable_i = variable_[index_i];
 		Real dt2 = dt * 0.5;
-		/** Contact interaction. */
+		// interaction with wall
 		for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
 		{
-			StdLargeVec<Real> &mass_k = *(this->contact_mass_[k]);
-			StdLargeVec<VariableType> &variable_k = *(this->contact_variable_[k]);
+			StdLargeVec<DataType> &variable_k = *(wall_variable_[k]);
 			Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
 			// forward sweep
 			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
 			{
 				size_t index_j = contact_neighborhood.j_[n];
-				Real mass_j = mass_k[index_j];
-
-				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
-								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / contact_neighborhood.r_ij_[n];
-
-				VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
-				variable_i += increment * mass_j;
-				variable_k[index_j] -= increment * mass_i;
-			}
-			// backward sweep
-			for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
-			{
-				size_t index_j = contact_neighborhood.j_[n - 1];
-				Real mass_j = mass_k[index_j];
-
-				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
-								   contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / contact_neighborhood.r_ij_[n - 1];
-
-				VariableType increment = parameter_b * variable_derivative / (mass_i * mass_j - parameter_b * (mass_i + mass_j));
-				variable_i += increment * mass_j;
-				variable_k[index_j] -= increment * mass_i;
-			}
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	BaseDampingPairwiseFromWall<VariableType>::
-		BaseDampingPairwiseFromWall(BaseContactRelation &contact_relation, const std::string &variable_name)
-		: LocalDynamics(contact_relation.sph_body_),
-		  DataDelegateContact<BaseParticles, SolidParticles>(contact_relation),
-		  Vol_(particles_->Vol_), mass_(particles_->mass_),
-		  variable_(*particles_->getVariableByName<VariableType>(variable_name))
-	{
-		for (size_t k = 0; k != contact_particles_.size(); ++k)
-		{
-			wall_variable_.push_back(contact_particles_[k]->template getVariableByName<VariableType>(variable_name));
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	template <typename InterParticleCoefficient>
-	void BaseDampingPairwiseFromWall<VariableType>::
-		dampPairwiseFromWall(size_t index_i, Real dt, const InterParticleCoefficient &coefficient)
-	{
-		Real Vol_i = Vol_[index_i];
-		Real mass_i = mass_[index_i];
-		VariableType &variable_i = variable_[index_i];
-		Real dt2 = dt * 0.5;
-		// interaction with wall
-		for (size_t k = 0; k < contact_configuration_.size(); ++k)
-		{
-			StdLargeVec<VariableType> &variable_k = *(wall_variable_[k]);
-			Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
-			// forward sweep
-			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
-			{
-				size_t index_j = contact_neighborhood.j_[n];
-				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
+				Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
 								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / contact_neighborhood.r_ij_[n];
 
 				// only update particle i
@@ -384,42 +268,13 @@ namespace SPH
 			for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
 			{
 				size_t index_j = contact_neighborhood.j_[n - 1];
-				Real parameter_b = 2.0 * coefficient(index_i, index_j) *
+				Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
 								   contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / contact_neighborhood.r_ij_[n - 1];
 
 				// only update particle i
 				variable_i += parameter_b * (variable_i - variable_k[index_j]) / (mass_i - parameter_b);
 			}
 		}
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	DampingPairwiseFromWall<VariableType>::
-		DampingPairwiseFromWall(BaseContactRelation &contact_relation, const std::string &variable_name, Real eta)
-		: BaseDampingPairwiseFromWall<VariableType>(contact_relation, variable_name), eta_(eta) {}
-	//=================================================================================================//
-	template <typename VariableType>
-	void DampingPairwiseFromWall<VariableType>::interaction(size_t index_i, Real dt)
-	{
-		this->dampPairwiseFromWall(index_i, dt,
-								   [&](size_t i, size_t j)
-								   { return eta_; });
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	DampingPairwiseFromWallVariableCoefficient<VariableType>::
-		DampingPairwiseFromWallVariableCoefficient(
-			BaseContactRelation &contact_relation,
-			const std::string &variable_name, const std::string &coefficient_name)
-		: BaseDampingPairwiseFromWall<VariableType>(contact_relation, variable_name),
-		  eta_(*this->particles_->template getVariableByName<VariableType>(coefficient_name)) {}
-	//=================================================================================================//
-	template <typename VariableType>
-	void DampingPairwiseFromWallVariableCoefficient<VariableType>::interaction(size_t index_i, Real dt)
-	{
-		this->dampPairwiseFromWall(index_i, dt,
-								   [&](size_t i, size_t j)
-								   { return eta_[i]; });
 	}
 	//=================================================================================================//
 	template <class DampingAlgorithmType>
@@ -449,24 +304,6 @@ namespace SPH
 	{
 		if (RandomChoice())
 			DampingAlgorithmType::parallel_exec(dt);
-	}
-	//=================================================================================================//
-	template <typename SteadySolutionCheckType>
-	template <class BodyRelationType, typename... Args>
-	DampingSteadyCheckVariableCoefficient<SteadySolutionCheckType>::
-		DampingSteadyCheckVariableCoefficient(BodyRelationType &body_relation,
-											  const std::string &coefficient_name, Args &&...args)
-		: SteadySolutionCheckType(body_relation, std::forward<Args>(args)...),
-		  eta_(*this->particles_->template getVariableByName<Real>(coefficient_name)) {}
-	//=================================================================================================//
-	template <typename SteadySolutionCheckType>
-	bool DampingSteadyCheckVariableCoefficient<SteadySolutionCheckType>::
-		reduce(size_t index_i, Real dt)
-	{
-		return this->checkCriterion(this->Residue(index_i,
-												  [&](size_t i, size_t j)
-												  { return 0.5 * (eta_[i] + eta_[j]); }),
-									dt);
 	}
 	//=================================================================================================//
 }
