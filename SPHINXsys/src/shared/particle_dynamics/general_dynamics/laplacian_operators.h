@@ -38,25 +38,27 @@ namespace SPH
      * @brief Base class for computing Laplacian operators with inner relation
      * This can be used for computing dissipative terms
      */
-    template <typename DataType>
-    class LaplacianInner : public BaseOperatorInner<DataType, DataType>
+    template <typename DataType,
+              template <typename SourceDataType> class SourceType, class CoefficientType>
+    class LaplacianInner : public OperatorInner<DataType, DataType, SourceType, CoefficientType>
     {
     public:
+        template <typename SourceArg, typename CoefficientArg>
         LaplacianInner(BaseInnerRelation &inner_relation,
-                           const std::string &in_variable_name, const std::string &out_variable_name)
-            : BaseOperatorInner<DataType, DataType>(inner_relation, in_variable_name, out_variable_name){};
+                       const std::string &in_variable_name, const std::string &out_variable_name,
+                       const SourceArg &source_arg, const CoefficientArg &coefficient_arg)
+            : OperatorInner<DataType, DataType, SourceType, CoefficientType>(
+                  inner_relation, in_variable_name, out_variable_name, source_arg, coefficient_arg){};
         virtual ~LaplacianInner(){};
 
-    protected:
-        template <typename CoefficientFunction>
-        void inline loopNeighbors(size_t index_i, const CoefficientFunction &coefficient)
+        void interaction(size_t index_i, Real dt)
         {
-            DataType sum = ZeroData<DataType>::value;
+            DataType sum = this->source_(index_i);
             const Neighborhood &neighborhood = this->inner_configuration_[index_i];
             for (size_t n = 0; n != neighborhood.current_size_; ++n)
             {
                 size_t index_j = neighborhood.j_[n];
-                sum += 2.0 * coefficient(index_i, index_j) *
+                sum += 2.0 * this->coefficient_(index_i, index_j) *
                        (this->in_variable_[index_i] - this->in_variable_[index_j]) *
                        neighborhood.dW_ijV_j_[n] / neighborhood.r_ij_[n];
             }
@@ -69,18 +71,56 @@ namespace SPH
      * @brief Base class for computing Laplacian operators with contact relation
      * This can be used for computing dissipative terms
      */
-    template <typename DataType>
-    class LaplacianContact : public BaseOperatorContact<DataType, DataType>
+    template <typename DataType, class CoefficientType>
+    class LaplacianContact : public OperatorContact<DataType, DataType, CoefficientType>
     {
     public:
+        template <typename CoefficientArg, typename ContactCoefficientArg>
         LaplacianContact(BaseContactRelation &contact_relation,
-                             const std::string &in_variable_name, const std::string &out_variable_name)
-            : BaseOperatorContact<DataType, DataType>(contact_relation, in_variable_name, out_variable_name){};
+                         const std::string &in_variable_name, const std::string &out_variable_name,
+                         const CoefficientArg &coefficient_arg, const CoefficientArg &contact_coefficient_arg)
+            : OperatorContact<DataType, DataType, CoefficientType>(
+                  contact_relation, in_variable_name, out_variable_name, coefficient_arg, contact_coefficient_arg){};
         virtual ~LaplacianContact(){};
 
-    protected:
-        template <typename CoefficientFunction>
-        void inline loopNeighbors(size_t index_i, const CoefficientFunction &coefficient)
+        void interaction(size_t index_i, Real dt)
+        {
+            DataType sum = ZeroData<DataType>::value;
+            for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
+            {
+                const Neighborhood &neighborhood = (*this->contact_configuration_[k])[index_i];
+                CoefficientType &coefficient_k = this->contact_coefficient_[k];
+                StdLargeVec<DataType> &in_variable_k = *(this->contact_in_variable_[k]);
+                for (size_t n = 0; n != neighborhood.current_size_; ++n)
+                {
+                    size_t index_j = neighborhood.j_[n];
+                    sum += 2.0 * coefficient_k(index_i, index_j) *
+                           (this->in_variable_[index_i] - in_variable_k[index_j]) *
+                           neighborhood.dW_ijV_j_[n] / neighborhood.r_ij_[n];
+                }
+                this->out_variable_[index_i] += sum;
+            }
+        };
+    };
+
+    /**
+     * @class LaplacianNearWall
+     * @brief Base class for computing Laplacian operators with contact relation
+     * This can be used for computing dissipative terms
+     */
+    template <typename DataType, class CoefficientType>
+    class LaplacianNearWall : public OperatorNearBoundary<DataType, DataType, CoefficientType>
+    {
+    public:
+        template <typename CoefficientArg>
+        LaplacianNearWall(BaseContactRelation &contact_relation,
+                          const std::string &in_variable_name, const std::string &out_variable_name,
+                          const CoefficientArg &coefficient_arg)
+            : OperatorNearBoundary<DataType, DataType, CoefficientType>(
+                  contact_relation, in_variable_name, out_variable_name, coefficient_arg){};
+        virtual ~LaplacianNearWall(){};
+
+        void interaction(size_t index_i, Real dt)
         {
             DataType sum = ZeroData<DataType>::value;
             for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
@@ -90,7 +130,7 @@ namespace SPH
                 for (size_t n = 0; n != neighborhood.current_size_; ++n)
                 {
                     size_t index_j = neighborhood.j_[n];
-                    sum += 2.0 * coefficient(index_i, index_j) *
+                    sum += 2.0 * this->coefficient_(index_i, index_j) *
                            (this->in_variable_[index_i] - in_variable_k[index_j]) *
                            neighborhood.dW_ijV_j_[n] / neighborhood.r_ij_[n];
                 }
