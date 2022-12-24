@@ -25,7 +25,7 @@ std::string variable_name = "Phi";
 std::string residue_name = "LaplacianResidue";
 Real lower_temperature = 300.0;
 Real upper_temperature = 350.0;
-Real stead_reference = upper_temperature - lower_temperature;
+Real reference_temperature = upper_temperature - lower_temperature;
 Real heat_source = 100.0;
 //----------------------------------------------------------------------
 //	Global parameters for material properties or coefficient variables.
@@ -156,7 +156,7 @@ int main()
 	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
 	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
-	InteractionDynamics<InteractionComplexInnerPrior<
+	InteractionDynamics<InteractionComplex<
 		OperatorAlgebraAverageCoefficient<Real, LaplacianInner<Real>>,
 		OperatorOneSideCoefficient<Real, LaplacianContact<Real>>>>
 		thermal_equation_residue(diffusion_body_complex, coefficient_name, variable_name, residue_name);
@@ -169,11 +169,11 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<InteractionComplexContactPrior<
+	InteractionSplit<InteractionComplex<
 		DampingPairwiseInnerVariableCoefficient<Real>,
 		DampingPairwiseFromWallVariableCoefficient<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
-	InteractionSplit<InteractionComplexContactPrior<
+	InteractionSplit<InteractionComplex<
 		DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
 		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name);
 	//----------------------------------------------------------------------
@@ -221,13 +221,15 @@ int main()
 		Real relaxation_time = 0.0;
 		while (relaxation_time < Observe_time)
 		{
-			thermal_source.parallel_exec(dt);
+//			thermal_source.parallel_exec(dt);
 
 			if (ite % 100 == 0)
 			{
 				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
 				thermal_equation_residue.parallel_exec();
-				std::cout << "Maximum Laplacian Residue is " << maximum_laplacian_residue.parallel_exec() << "\n";
+				Real normalized_residue = resolution_ref * resolution_ref * maximum_laplacian_residue.parallel_exec() / 
+				reference_temperature / diffusion_coff;
+				std::cout << "Maximum Laplacian Residue is " << normalized_residue << "\n";
 			}
 
 			implicit_heat_transfer_solver.parallel_exec(dt);

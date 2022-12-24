@@ -168,50 +168,14 @@ namespace SPH
 								 std::forward<Args>(args)...){};
 		virtual ~InteractionComplex(){};
 
+		void interaction(size_t index_i, Real dt = 0.0)
+		{
+			inner_interaction_.interaction(index_i, dt);
+			contact_interaction_.interaction(index_i, dt);
+		};
 	protected:
 		InteractionInnerType inner_interaction_;
 		InteractionContactType contact_interaction_;
 	};
-
-	/**
-	 * @class InteractionComplexInnerPrior
-	 * @brief
-	 */
-	template <class InteractionInnerType, class InteractionContactType>
-	class InteractionComplexInnerPrior : public InteractionComplex<InteractionInnerType, InteractionContactType>
-	{
-	public:
-		template <typename... Args>
-		InteractionComplexInnerPrior(Args &&...args)
-			: InteractionComplex<InteractionInnerType, InteractionContactType>(std::forward<Args>(args)...){};
-		virtual ~InteractionComplexInnerPrior(){};
-
-		void interaction(size_t index_i, Real dt = 0.0)
-		{
-			this->inner_interaction_.interaction(index_i, dt);
-			this->contact_interaction_.interaction(index_i, dt);
-		};
-	};
-
-	/**
-	 * @class InteractionComplexContactPrior
-	 * @brief
-	 */
-	template <class InteractionInnerType, class InteractionContactType>
-	class InteractionComplexContactPrior : public InteractionComplex<InteractionInnerType, InteractionContactType>
-	{
-	public:
-		template <typename... Args>
-		InteractionComplexContactPrior(Args &&...args)
-			: InteractionComplex<InteractionInnerType, InteractionContactType>(std::forward<Args>(args)...){};
-		virtual ~InteractionComplexContactPrior(){};
-
-		void interaction(size_t index_i, Real dt = 0.0)
-		{
-			this->contact_interaction_.interaction(index_i, dt);
-			this->inner_interaction_.interaction(index_i, dt);
-		};
-	};
-
 }
 #endif // BASE_LOCAL_DYNAMICS_H
