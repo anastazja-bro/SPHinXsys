@@ -8,8 +8,8 @@
 namespace SPH
 {
     //=================================================================================================//
-    DampingCoefficientEvolution::
-        DampingCoefficientEvolution(BaseInnerRelation &inner_relation, const std::string &variable_name,
+    CoefficientEvolution::
+        CoefficientEvolution(BaseInnerRelation &inner_relation, const std::string &variable_name,
                                     const std::string &coefficient_name, Real threshold)
         : LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
           Vol_(particles_->Vol_), mass_(particles_->mass_),
@@ -17,7 +17,7 @@ namespace SPH
           eta_(*this->particles_->template getVariableByName<Real>(coefficient_name)),
           threshold_(threshold) {}
     //=================================================================================================//
-    void DampingCoefficientEvolution::interaction(size_t index_i, Real dt)
+    void CoefficientEvolution::interaction(size_t index_i, Real dt)
     {
         Real Vol_i = Vol_[index_i];
         Real mass_i = mass_[index_i];
@@ -78,8 +78,8 @@ namespace SPH
         }
     }
     //=================================================================================================//
-    DampingCoefficientEvolutionExplicit::
-        DampingCoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
+    CoefficientEvolutionExplicit::
+        CoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
                                             const std::string &variable_name,
                                             const std::string &coefficient_name, Real threshold)
         : LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
@@ -91,7 +91,7 @@ namespace SPH
         particles_->registerVariable(change_rate_, "DiffusionCoefficientChangeRate");
     }
     //=================================================================================================//
-    void DampingCoefficientEvolutionExplicit::interaction(size_t index_i, Real dt)
+    void CoefficientEvolutionExplicit::interaction(size_t index_i, Real dt)
     {
         Real variable_i = variable_[index_i];
         Real eta_i = eta_[index_i];
@@ -104,7 +104,7 @@ namespace SPH
             size_t index_j = inner_neighborhood.j_[n];
 
             Real variable_diff = (variable_i - variable_[index_j]);
-            Real variable_diff_abs = ABS(variable_diff);
+            Real variable_diff_abs = 2.0 * ABS(variable_diff);
             Real coefficient_ave = 0.5 * (eta_i + eta_[index_j]);
             Real coefficient_diff = 0.5 * (eta_i - eta_[index_j]);
 
@@ -113,13 +113,55 @@ namespace SPH
         change_rate_[index_i] = change_rate / rho_[index_i];
     }
     //=================================================================================================//
-    void DampingCoefficientEvolutionExplicit::update(size_t index_i, Real dt)
+    void CoefficientEvolutionExplicit::update(size_t index_i, Real dt)
     {
         eta_[index_i] += change_rate_[index_i] * dt;
     }
     //=================================================================================================//
-    DampingCoefficientEvolutionFromWall::
-        DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
+    CoefficientEvolutionWithWallExplicit::
+        CoefficientEvolutionWithWallExplicit(ComplexRelation &complex_relation,
+                                                    const std::string &variable_name,
+                                                    const std::string &coefficient_name, Real threshold)
+        : CoefficientEvolutionExplicit(complex_relation.getInnerRelation(), variable_name,
+                                              coefficient_name, threshold),
+          DissipationDataWithWall(complex_relation.getContactRelation())
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            wall_variable_.push_back(contact_particles_[k]->template getVariableByName<Real>(variable_name));
+        }
+    }
+    //=================================================================================================//
+    void CoefficientEvolutionWithWallExplicit::interaction(size_t index_i, Real dt)
+    {
+        CoefficientEvolutionExplicit::interaction(index_i, dt);
+
+        Real variable_i = variable_[index_i];
+        Real eta_i = eta_[index_i];
+
+        Real change_rate = 0.0;
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            const StdLargeVec<Real> &variable_k = *(wall_variable_[k]);
+            const Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                Real b_ij = 2.0 * contact_neighborhood.dW_ijV_j_[n] / contact_neighborhood.r_ij_[n];
+                size_t index_j = contact_neighborhood.j_[n];
+
+                Real variable_diff = (variable_i - variable_k[index_j]);
+                Real variable_diff_abs = ABS(variable_diff);
+                Real coefficient_ave = 0.5 * (eta_i + eta_[index_j]);
+                Real coefficient_diff = 0.5 * (eta_i - eta_[index_j]);
+
+                change_rate += b_ij * (coefficient_ave * variable_diff + coefficient_diff * variable_diff_abs);
+            }
+        }
+        change_rate_[index_i] += change_rate / rho_[index_i];
+    }
+    //=================================================================================================//
+    CoefficientEvolutionFromWall::
+        CoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
                                             const std::string &variable_name,
                                             const std::string &coefficient_name, Real threshold)
         : LocalDynamics(contact_relation.sph_body_),
@@ -135,7 +177,7 @@ namespace SPH
         }
     }
     //=================================================================================================//
-    void DampingCoefficientEvolutionFromWall::interaction(size_t index_i, Real dt)
+    void CoefficientEvolutionFromWall::interaction(size_t index_i, Real dt)
     {
         Real Vol_i = Vol_[index_i];
         Real mass_i = mass_[index_i];

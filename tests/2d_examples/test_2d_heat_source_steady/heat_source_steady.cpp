@@ -27,6 +27,7 @@ Real lower_temperature = 300.0;
 Real upper_temperature = 350.0;
 Real reference_temperature = upper_temperature - lower_temperature;
 Real heat_source = 100.0;
+Real learning_strength = 100.0;
 //----------------------------------------------------------------------
 //	Global parameters for material properties or coefficient variables.
 //----------------------------------------------------------------------
@@ -156,6 +157,8 @@ int main()
 	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
 	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
+	SimpleDynamics<ImposingSourceTerm<Real>> impose_optimization_target(diffusion_body, variable_name, -learning_strength);
+	SimpleDynamics<ImposingSourceTerm<Real>> cancel_optimization_target(diffusion_body, variable_name, learning_strength);
 	InteractionDynamics<OperatorWithBoundary<
 		LaplacianInner<Real, CoefficientByParticle<Real>>,
 		LaplacianFromWall<Real, CoefficientByParticle<Real>>>>
@@ -174,8 +177,8 @@ int main()
 		DampingPairwiseInnerCoefficientByParticle<Real>,
 		DampingPairwiseFromWallCoefficientByParticle<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
-	InteractionWithUpdate<DampingCoefficientEvolutionExplicit>
-		damping_coefficient_evolution(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name, 0.1);
+	InteractionWithUpdate<CoefficientEvolutionWithWallExplicit>
+		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 0.1);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -204,7 +207,9 @@ int main()
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
 	Real dt = 1.0 / 1000.0;
+	Real dt_coeff = 0.25 * resolution_ref * resolution_ref / reference_temperature;
 	int restart_output_interval = 1000;
+	size_t learning_steps = 10;
 
 	/** Output global basic parameters.*/
 	write_states.writeToFile(ite);
@@ -234,15 +239,13 @@ int main()
 			thermal_equation_residue.parallel_exec();
 			Real normalized_residue = resolution_ref * resolution_ref * maximum_laplacian_residue.parallel_exec() /
 									  reference_temperature / diffusion_coff;
-			if (normalized_residue < 2.0)
+			impose_optimization_target.parallel_exec(dt);
+			for (size_t k = 0; k < learning_steps; ++k)
 			{
-//				std::cout << "Maximum Laplacian Residue is " << normalized_residue << "\n";
-				write_states.writeToFile(ite);
-				Real dt_coeff = 0.25 * resolution_ref * resolution_ref / reference_temperature;
 				damping_coefficient_evolution.parallel_exec(dt_coeff);
-				constrain_total_coefficient.parallel_exec();
-				write_states.writeToFile(ite + 1);
 			}
+			constrain_total_coefficient.parallel_exec();
+			cancel_optimization_target.parallel_exec(dt);
 
 			ite++;
 			relaxation_time += dt;
@@ -254,7 +257,7 @@ int main()
 			}
 		}
 
-//		write_states.writeToFile(ite);
+		write_states.writeToFile(ite);
 	}
 
 	tick_count t4 = tick_count::now();

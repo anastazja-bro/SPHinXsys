@@ -168,16 +168,16 @@ namespace SPH
 	};
 
 	/**
-	 * @class DampingCoefficientEvolution
+	 * @class CoefficientEvolution
 	 * @brief Only works for scalar variable and coefficient.
 	 * TODO: to be generalized for different data type
 	 */
-	class DampingCoefficientEvolution : public LocalDynamics, public DissipationDataInner
+	class CoefficientEvolution : public LocalDynamics, public DissipationDataInner
 	{
 	public:
-		DampingCoefficientEvolution(BaseInnerRelation &inner_relation, 
+		CoefficientEvolution(BaseInnerRelation &inner_relation,
 									const std::string &variable_name, const std::string &eta, Real threshold);
-		virtual ~DampingCoefficientEvolution(){};
+		virtual ~CoefficientEvolution(){};
 		void interaction(size_t index_i, Real dt);
 
 	protected:
@@ -188,16 +188,16 @@ namespace SPH
 	};
 
 	/**
-	 * @class DampingCoefficientEvolutionExplicit
+	 * @class CoefficientEvolutionExplicit
 	 * @brief Only works for scalar variable and coefficient.
 	 * TODO: to be generalized for different data type
 	 */
-	class DampingCoefficientEvolutionExplicit : public LocalDynamics, public DissipationDataInner
+	class CoefficientEvolutionExplicit : public LocalDynamics, public DissipationDataInner
 	{
 	public:
-		DampingCoefficientEvolutionExplicit(BaseInnerRelation &inner_relation, 
-									const std::string &variable_name, const std::string &eta, Real threshold);
-		virtual ~DampingCoefficientEvolutionExplicit(){};
+		CoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
+											const std::string &variable_name, const std::string &eta, Real threshold);
+		virtual ~CoefficientEvolutionExplicit(){};
 		void interaction(size_t index_i, Real dt);
 		void update(size_t index_i, Real dt);
 
@@ -208,18 +208,37 @@ namespace SPH
 		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
 		Real threshold_;
 	};
+
 	/**
-	 * @class DampingCoefficientEvolutionFromWall
+	 * @class CoefficientEvolutionFromWallExplicit
 	 * @brief Only works for scalar variable and coefficient.
 	 * TODO: to be generalized for different data type
 	 */
-	class DampingCoefficientEvolutionFromWall : public LocalDynamics,
+	class CoefficientEvolutionWithWallExplicit : public CoefficientEvolutionExplicit,
+														public DissipationDataWithWall
+	{
+	public:
+		CoefficientEvolutionWithWallExplicit(ComplexRelation &complex_relation,
+											const std::string &variable_name, const std::string &eta, Real threshold);
+		virtual ~CoefficientEvolutionWithWallExplicit(){};
+		void interaction(size_t index_i, Real dt);
+
+	protected:
+		StdVec<StdLargeVec<Real> *> wall_variable_;
+	};
+
+	/**
+	 * @class CoefficientEvolutionFromWall
+	 * @brief Only works for scalar variable and coefficient.
+	 * TODO: to be generalized for different data type
+	 */
+	class CoefficientEvolutionFromWall : public LocalDynamics,
 												public DataDelegateContact<BaseParticles, SolidParticles>
 	{
 	public:
-		DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
+		CoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
 											const std::string &variable_name, const std::string &eta, Real threshold);
-		virtual ~DampingCoefficientEvolutionFromWall(){};
+		virtual ~CoefficientEvolutionFromWall(){};
 		void interaction(size_t index_i, Real dt);
 
 	protected:
