@@ -178,7 +178,9 @@ int main()
 		DampingPairwiseFromWallCoefficientByParticle<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
 	InteractionWithUpdate<CoefficientEvolutionWithWallExplicit>
-		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 0.1);
+		coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 0.1);
+	InteractionSplit<DampingCoefficient> 
+		damping_coefficient(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name, 1.0);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -242,7 +244,8 @@ int main()
 			impose_optimization_target.parallel_exec(dt);
 			for (size_t k = 0; k < learning_steps; ++k)
 			{
-				damping_coefficient_evolution.parallel_exec(dt_coeff);
+				coefficient_evolution.parallel_exec(dt_coeff);
+				damping_coefficient.parallel_exec(dt_coeff);
 			}
 			constrain_total_coefficient.parallel_exec();
 			cancel_optimization_target.parallel_exec(dt);

@@ -10,7 +10,7 @@ namespace SPH
     //=================================================================================================//
     CoefficientEvolution::
         CoefficientEvolution(BaseInnerRelation &inner_relation, const std::string &variable_name,
-                                    const std::string &coefficient_name, Real threshold)
+                             const std::string &coefficient_name, Real threshold)
         : LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
           Vol_(particles_->Vol_), mass_(particles_->mass_),
           variable_(*particles_->getVariableByName<Real>(variable_name)),
@@ -80,8 +80,8 @@ namespace SPH
     //=================================================================================================//
     CoefficientEvolutionExplicit::
         CoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
-                                            const std::string &variable_name,
-                                            const std::string &coefficient_name, Real threshold)
+                                     const std::string &variable_name,
+                                     const std::string &coefficient_name, Real threshold)
         : LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
           rho_(particles_->rho_),
           variable_(*particles_->getVariableByName<Real>(variable_name)),
@@ -120,10 +120,10 @@ namespace SPH
     //=================================================================================================//
     CoefficientEvolutionWithWallExplicit::
         CoefficientEvolutionWithWallExplicit(ComplexRelation &complex_relation,
-                                                    const std::string &variable_name,
-                                                    const std::string &coefficient_name, Real threshold)
+                                             const std::string &variable_name,
+                                             const std::string &coefficient_name, Real threshold)
         : CoefficientEvolutionExplicit(complex_relation.getInnerRelation(), variable_name,
-                                              coefficient_name, threshold),
+                                       coefficient_name, threshold),
           DissipationDataWithWall(complex_relation.getContactRelation())
     {
         for (size_t k = 0; k != contact_particles_.size(); ++k)
@@ -162,8 +162,8 @@ namespace SPH
     //=================================================================================================//
     CoefficientEvolutionFromWall::
         CoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
-                                            const std::string &variable_name,
-                                            const std::string &coefficient_name, Real threshold)
+                                     const std::string &variable_name,
+                                     const std::string &coefficient_name, Real threshold)
         : LocalDynamics(contact_relation.sph_body_),
           DataDelegateContact<BaseParticles, SolidParticles>(contact_relation),
           Vol_(particles_->Vol_), mass_(particles_->mass_),
@@ -217,5 +217,58 @@ namespace SPH
                 }
             }
         }
-    } //=================================================================================================//
+    }
+    //=================================================================================================//
+    DampingCoefficient::
+        DampingCoefficient(BaseInnerRelation &inner_relation, const std::string &variable_name,
+                           const std::string &coefficient_name, Real strength)
+        : LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
+          Vol_(particles_->Vol_), mass_(particles_->mass_),
+          variable_(*particles_->getVariableByName<Real>(variable_name)),
+          eta_(*this->particles_->template getVariableByName<Real>(coefficient_name)),
+          strength_(strength) {}
+    //=================================================================================================//
+    void DampingCoefficient::interaction(size_t index_i, Real dt)
+    {
+        Real Vol_i = Vol_[index_i];
+        Real mass_i = mass_[index_i];
+        const Real &variable_i = variable_[index_i];
+        Real &eta_i = eta_[index_i];
+
+        Real dt2 = dt * 0.5;
+        const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+        // forward sweep
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / inner_neighborhood.r_ij_[n];
+            size_t index_j = inner_neighborhood.j_[n];
+            Real mass_j = mass_[index_j];
+
+            Real variable_diff_abs = strength_ * ABS(variable_i - variable_[index_j]);
+            Real coefficient_diff = 0.5 * (eta_i - eta_[index_j]);
+            Real increment = parameter_b * coefficient_diff * variable_diff_abs /
+                             (mass_i * mass_j - parameter_b * (mass_j + mass_i) * variable_diff_abs);
+
+            eta_i += increment * mass_j;
+            eta_[index_j] -= increment * mass_i;
+        }
+
+        // backward sweep
+        for (size_t n = inner_neighborhood.current_size_; n != 0; --n)
+        {
+            Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / inner_neighborhood.r_ij_[n - 1];
+            size_t index_j = inner_neighborhood.j_[n - 1];
+            Real mass_j = mass_[index_j];
+
+            Real variable_diff_abs = strength_ * ABS(variable_i - variable_[index_j]);
+            Real coefficient_ave = 0.5 * (eta_i + eta_[index_j]);
+            Real coefficient_diff = 0.5 * (eta_i - eta_[index_j]);
+            Real increment = parameter_b * coefficient_diff * variable_diff_abs /
+                             (mass_i * mass_j - parameter_b * (mass_j + mass_i) * variable_diff_abs);
+
+            eta_i += increment * mass_j;
+            eta_[index_j] -= increment * mass_i;
+        }
+    }
+    //=================================================================================================//
 }
