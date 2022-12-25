@@ -161,6 +161,7 @@ int main()
 		LaplacianFromWall<Real, CoefficientByParticle<Real>>>>
 		thermal_equation_residue(diffusion_body_complex, variable_name, residue_name, coefficient_name);
 	ReduceDynamics<MaximumNorm<Real>> maximum_laplacian_residue(diffusion_body, residue_name);
+	ReduceDynamics<QuantityMoment<Real>> total_coefficient(diffusion_body, coefficient_name);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
@@ -175,7 +176,7 @@ int main()
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
 	InteractionSplit<InteractionComplex<
 		DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
-		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name);
+		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 0.1);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -186,7 +187,7 @@ int main()
 	boundary_constraint.parallel_exec();
 	coefficient_distribution.parallel_exec();
 	constrain_total_coefficient.setupInitialScalarAmount();
-	//	thermal_equation_residue.parallel_exec();
+	thermal_equation_residue.parallel_exec();
 	//----------------------------------------------------------------------
 	//	Load restart file if necessary.
 	//----------------------------------------------------------------------
@@ -226,13 +227,22 @@ int main()
 			if (ite % 100 == 0)
 			{
 				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
-				thermal_equation_residue.parallel_exec();
-				Real normalized_residue = resolution_ref * resolution_ref * maximum_laplacian_residue.parallel_exec() /
-										  reference_temperature / diffusion_coff;
-				std::cout << "Maximum Laplacian Residue is " << normalized_residue << "\n";
+				std::cout << "Total coefficient is " << total_coefficient.parallel_exec() << "\n";
 			}
 
 			implicit_heat_transfer_solver.parallel_exec(dt);
+
+			thermal_equation_residue.parallel_exec();
+			Real normalized_residue = resolution_ref * resolution_ref * maximum_laplacian_residue.parallel_exec() /
+									  reference_temperature / diffusion_coff;
+			if (normalized_residue < 2.0)
+			{
+//				std::cout << "Maximum Laplacian Residue is " << normalized_residue << "\n";
+				write_states.writeToFile(ite);
+				damping_coefficient_evolution.parallel_exec(dt);
+				constrain_total_coefficient.parallel_exec();
+				write_states.writeToFile(ite + 1);
+			}
 
 			ite++;
 			relaxation_time += dt;
@@ -244,7 +254,7 @@ int main()
 			}
 		}
 
-		write_states.writeToFile(ite);
+//		write_states.writeToFile(ite);
 	}
 
 	tick_count t4 = tick_count::now();

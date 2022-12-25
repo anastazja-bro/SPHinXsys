@@ -175,8 +175,8 @@ namespace SPH
 	class DampingCoefficientEvolution : public LocalDynamics, public DissipationDataInner
 	{
 	public:
-		DampingCoefficientEvolution(BaseInnerRelation &inner_relation,
-									const std::string &variable_name, const std::string &eta);
+		DampingCoefficientEvolution(BaseInnerRelation &inner_relation, 
+									const std::string &variable_name, const std::string &eta, Real threshold);
 		virtual ~DampingCoefficientEvolution(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -184,6 +184,7 @@ namespace SPH
 		StdLargeVec<Real> &Vol_, &mass_;
 		StdLargeVec<Real> &variable_;
 		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+		Real threshold_;
 	};
 
 	/**
@@ -196,7 +197,7 @@ namespace SPH
 	{
 	public:
 		DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
-											const std::string &variable_name, const std::string &eta);
+											const std::string &variable_name, const std::string &eta, Real threshold);
 		virtual ~DampingCoefficientEvolutionFromWall(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -205,6 +206,7 @@ namespace SPH
 		StdLargeVec<Real> &variable_;
 		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
 		StdVec<StdLargeVec<Real> *> wall_variable_;
+		Real threshold_;
 	};
 
 	/**
