@@ -199,15 +199,23 @@ namespace SPH
 		return error_and_parameters;
 	}
 	//=================================================================================================//
-	template <typename DataType,
-			  template <typename SourceDataType> class SourceType, class CoefficientType>
-	void BaseDampingPairwiseInner<DataType, SourceType, CoefficientType>::
+	template <typename DataType, class CoefficientType>
+	template <typename Arg>
+	BaseDampingPairwiseInner<DataType, CoefficientType>::
+		BaseDampingPairwiseInner(BaseInnerRelation &inner_relation,
+								 const std::string &variable_name, const Arg &eta)
+		: OperatorInner<DataType, DataType, CoefficientType>(
+			  inner_relation, variable_name, variable_name, eta),
+		  Vol_(this->particles_->Vol_), mass_(this->particles_->mass_),
+		  variable_(this->in_variable_) {}
+	//=================================================================================================//
+	template <typename DataType, class CoefficientType>
+	void BaseDampingPairwiseInner<DataType, CoefficientType>::
 		interaction(size_t index_i, Real dt)
 	{
 		Real Vol_i = Vol_[index_i];
 		Real mass_i = mass_[index_i];
 		DataType &variable_i = variable_[index_i];
-		variable_i += this->source_(index_i) * dt;
 		Real dt2 = dt * 0.5;
 		const Neighborhood &inner_neighborhood = this->inner_configuration_[index_i];
 		// forward sweep
@@ -240,6 +248,16 @@ namespace SPH
 			variable_[index_j] -= increment * mass_i;
 		}
 	}
+	//=================================================================================================//
+	template <typename DataType, class CoefficientType>
+	template <typename Arg>
+	BaseDampingPairwiseFromWall<DataType, CoefficientType>::
+		BaseDampingPairwiseFromWall(BaseContactRelation &contact_relation,
+									const std::string &variable_name, const Arg &eta)
+		: OperatorFromBoundary<DataType, DataType, CoefficientType>(
+			  contact_relation, variable_name, variable_name, eta),
+		  Vol_(this->particles_->Vol_), mass_(this->particles_->mass_),
+		  variable_(this->in_variable_), wall_variable_(this->contact_in_variable_) {}
 	//=================================================================================================//
 	template <typename DataType, class CoefficientType>
 	void BaseDampingPairwiseFromWall<DataType, CoefficientType>::interaction(size_t index_i, Real dt)

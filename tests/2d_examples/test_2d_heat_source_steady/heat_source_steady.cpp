@@ -157,9 +157,9 @@ int main()
 	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
 	InteractionDynamics<OperatorWithBoundary<
-		LaplacianInner<Real, ConstantSource, CoefficientByParticle<Real>>,
+		LaplacianInner<Real, CoefficientByParticle<Real>>,
 		LaplacianFromWall<Real, CoefficientByParticle<Real>>>>
-		thermal_equation_residue(diffusion_body_complex, variable_name, residue_name, heat_source, coefficient_name);
+		thermal_equation_residue(diffusion_body_complex, variable_name, residue_name, coefficient_name);
 	ReduceDynamics<MaximumNorm<Real>> maximum_laplacian_residue(diffusion_body, residue_name);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -172,7 +172,7 @@ int main()
 	InteractionSplit<DampingWithWall<
 		DampingPairwiseInnerCoefficientByParticle<Real>,
 		DampingPairwiseFromWallCoefficientByParticle<Real>>>
-		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name, heat_source);
+		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
 	InteractionSplit<InteractionComplex<
 		DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
 		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name);

@@ -118,17 +118,13 @@ namespace SPH
 	 * the parallelized version of the method requires the one using ghost particles
 	 * because the splitting partition only works in this case.
 	 */
-	template <typename DataType,
-			  template <typename SourceDataType> class SourceType, class CoefficientType>
-	class BaseDampingPairwiseInner : public OperatorInner<DataType, DataType, SourceType, CoefficientType>
+	template <typename DataType, class CoefficientType>
+	class BaseDampingPairwiseInner : public OperatorInner<DataType, DataType, CoefficientType>
 	{
 	public:
-		template <typename SourceArg, typename CoefficientArg>
-		BaseDampingPairwiseInner(BaseInnerRelation &inner_relation, const std::string &variable_name,
-								 const SourceArg &source_arg, const CoefficientArg &coefficient_arg)
-			: OperatorInner<DataType, DataType, SourceType, CoefficientType>(
-				  inner_relation, variable_name, variable_name, source_arg, coefficient_arg),
-			  Vol_(this->particles_->Vol_), mass_(this->particles_->mass_), variable_(this->in_variable_){};
+		template <typename Arg>
+		BaseDampingPairwiseInner(BaseInnerRelation &inner_relation,
+								 const std::string &variable_name, const Arg &eta);
 		virtual ~BaseDampingPairwiseInner(){};
 
 		void interaction(size_t index_i, Real dt = 0.0);
@@ -144,13 +140,13 @@ namespace SPH
 	 */
 	template <typename DataType>
 	class DampingPairwiseInner
-		: public BaseDampingPairwiseInner<DataType, ConstantSource, ConstantCoefficient<Real>>
+		: public BaseDampingPairwiseInner<DataType, ConstantCoefficient<Real>>
 	{
 	public:
-		DampingPairwiseInner(BaseInnerRelation &inner_relation, const std::string &variable_name,
-							 Real eta, const DataType &source = ZeroData<DataType>::value)
-			: BaseDampingPairwiseInner<DataType, ConstantSource, ConstantCoefficient<Real>>(
-				  inner_relation, variable_name, source, eta){};
+		DampingPairwiseInner(BaseInnerRelation &inner_relation,
+							 const std::string &variable_name, Real eta)
+			: BaseDampingPairwiseInner<DataType, ConstantCoefficient<Real>>(
+				  inner_relation, variable_name, eta){};
 		virtual ~DampingPairwiseInner(){};
 	};
 
@@ -160,14 +156,14 @@ namespace SPH
 	 */
 	template <typename DataType>
 	class DampingPairwiseInnerCoefficientByParticle
-		: public BaseDampingPairwiseInner<DataType, ConstantSource, CoefficientByParticle<Real>>
+		: public BaseDampingPairwiseInner<DataType, CoefficientByParticle<Real>>
 	{
 	public:
 		DampingPairwiseInnerCoefficientByParticle(
 			BaseInnerRelation &inner_relation, const std::string &variable_name,
-			const std::string &coefficient_name, const DataType &source = ZeroData<DataType>::value)
-			: BaseDampingPairwiseInner<DataType, ConstantSource, CoefficientByParticle<Real>>(
-				  inner_relation, variable_name, source, coefficient_name){};
+			const std::string &eta)
+			: BaseDampingPairwiseInner<DataType, CoefficientByParticle<Real>>(
+				  inner_relation, variable_name, eta){};
 		virtual ~DampingPairwiseInnerCoefficientByParticle(){};
 	};
 
@@ -180,7 +176,7 @@ namespace SPH
 	{
 	public:
 		DampingCoefficientEvolution(BaseInnerRelation &inner_relation,
-									const std::string &variable_name, const std::string &coefficient_name);
+									const std::string &variable_name, const std::string &eta);
 		virtual ~DampingCoefficientEvolution(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -200,7 +196,7 @@ namespace SPH
 	{
 	public:
 		DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
-											const std::string &variable_name, const std::string &coefficient_name);
+											const std::string &variable_name, const std::string &eta);
 		virtual ~DampingCoefficientEvolutionFromWall(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -212,7 +208,7 @@ namespace SPH
 	};
 
 	/**
-	 * @class BaseDampingPairwiseNearWall
+	 * @class BaseDampingPairwiseFromWall
 	 * @brief Damping to wall by which the wall velocity is not updated
 	 * and the mass of wall particle is not considered.
 	 */
@@ -220,13 +216,9 @@ namespace SPH
 	class BaseDampingPairwiseFromWall : public OperatorFromBoundary<DataType, DataType, CoefficientType>
 	{
 	public:
-		template <typename CoefficientArg>
+		template <typename Arg>
 		BaseDampingPairwiseFromWall(BaseContactRelation &contact_relation,
-									const std::string &variable_name, const CoefficientArg &coefficient_arg)
-			: OperatorFromBoundary<DataType, DataType, CoefficientType>(
-				  contact_relation, variable_name, variable_name, coefficient_arg),
-			  Vol_(this->particles_->Vol_), mass_(this->particles_->mass_),
-			  variable_(this->in_variable_), wall_variable_(this->contact_in_variable_){};
+									const std::string &variable_name, const Arg &eta);
 		virtual ~BaseDampingPairwiseFromWall(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -246,7 +238,8 @@ namespace SPH
 		: public BaseDampingPairwiseFromWall<DataType, ConstantCoefficient<Real>>
 	{
 	public:
-		DampingPairwiseFromWall(BaseContactRelation &contact_relation, const std::string &variable_name, Real eta)
+		DampingPairwiseFromWall(BaseContactRelation &contact_relation,
+								const std::string &variable_name, Real eta)
 			: BaseDampingPairwiseFromWall<DataType, ConstantCoefficient<Real>>(
 				  contact_relation, variable_name, eta){};
 		virtual ~DampingPairwiseFromWall(){};
@@ -264,39 +257,39 @@ namespace SPH
 	public:
 		DampingPairwiseFromWallCoefficientByParticle(
 			BaseContactRelation &contact_relation,
-			const std::string &variable_name, const std::string &coefficient_name)
+			const std::string &variable_name, const std::string &eta)
 			: BaseDampingPairwiseFromWall<DataType, CoefficientByParticle<Real>>(
-				  contact_relation, variable_name, coefficient_name){};
+				  contact_relation, variable_name, eta){};
 		virtual ~DampingPairwiseFromWallCoefficientByParticle(){};
 	};
 
 	/**
 	 * @class DampingWithWall
-	 * @brief Damping to wall by which the wall velocity is not updated
-	 * and the mass of wall particle is not considered.
+	 * @brief Damping with wall with the priority for update operator to wall first.
 	 */
 	template <class BaseDampingType, class DampingFromWallType>
 	class DampingWithWall : public LocalDynamics
 	{
 	public:
-		template <class BodyRelationType, typename SourceArg, typename CoefficientArg>
-		DampingWithWall(BodyRelationType &body_relation, BaseContactRelation &relation_to_boundary,
-						const std::string &variable_name,
-						const CoefficientArg &coefficient_arg, const SourceArg &source_arg)
+		template <class BodyRelationType, typename Arg>
+		DampingWithWall(BodyRelationType &body_relation,
+						BaseContactRelation &relation_to_boundary,
+						const std::string &variable_name, const Arg &eta)
 			: LocalDynamics(body_relation.sph_body_),
-			  base_operator_(body_relation, variable_name, coefficient_arg, source_arg),
-			  damping_from_wall_(relation_to_boundary, variable_name, coefficient_arg){};
-		template <typename SourceArg, typename CoefficientArg, typename... ExtraCoefficientArg>
-		DampingWithWall(ComplexRelation &complex_relation, const std::string &variable_name,
-						const CoefficientArg &coefficient_arg, const SourceArg &source_arg)
-			: DampingWithWall(complex_relation.getInnerRelation(), complex_relation.getContactRelation(),
-							  variable_name, coefficient_arg, source_arg){};
+			  base_operator_(body_relation, variable_name, eta),
+			  damping_from_wall_(relation_to_boundary, variable_name, eta){};
+		template <typename Arg, typename... ExtraCoefficientArg>
+		DampingWithWall(ComplexRelation &complex_relation,
+						const std::string &variable_name, const Arg &eta)
+			: DampingWithWall(complex_relation.getInnerRelation(),
+							  complex_relation.getContactRelation(),
+							  variable_name, eta){};
 		virtual ~DampingWithWall(){};
 
 		void interaction(size_t index_i, Real dt)
 		{
-			base_operator_.interaction(index_i, dt);
 			damping_from_wall_.interaction(index_i, dt);
+			base_operator_.interaction(index_i, dt);
 		};
 
 	protected:

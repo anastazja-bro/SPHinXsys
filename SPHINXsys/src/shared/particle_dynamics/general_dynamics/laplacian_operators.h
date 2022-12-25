@@ -38,22 +38,20 @@ namespace SPH
      * @brief Base class for computing Laplacian operators with inner relation
      * This can be used for computing dissipative terms
      */
-    template <typename DataType,
-              template <typename SourceDataType> class SourceType, class CoefficientType>
-    class LaplacianInner : public OperatorInner<DataType, DataType, SourceType, CoefficientType>
+    template <typename DataType, class CoefficientType>
+    class LaplacianInner : public OperatorInner<DataType, DataType, CoefficientType>
     {
     public:
-        template <typename SourceArg, typename CoefficientArg>
+        template <typename Arg>
         LaplacianInner(BaseInnerRelation &inner_relation,
-                       const std::string &in_variable_name, const std::string &out_variable_name,
-                       const SourceArg &source_arg, const CoefficientArg &coefficient_arg)
-            : OperatorInner<DataType, DataType, SourceType, CoefficientType>(
-                  inner_relation, in_variable_name, out_variable_name, source_arg, coefficient_arg){};
+                       const std::string &in_name, const std::string &out_name, const Arg &eta)
+            : OperatorInner<DataType, DataType, CoefficientType>(
+                  inner_relation, in_name, out_name, eta){};
         virtual ~LaplacianInner(){};
 
         void interaction(size_t index_i, Real dt)
         {
-            DataType sum = this->source_(index_i);
+            DataType sum = ZeroData<DataType>::value;
             const Neighborhood &neighborhood = this->inner_configuration_[index_i];
             for (size_t n = 0; n != neighborhood.current_size_; ++n)
             {
@@ -75,12 +73,12 @@ namespace SPH
     class LaplacianContact : public OperatorContact<DataType, DataType, CoefficientType>
     {
     public:
-        template <typename CoefficientArg, typename ContactCoefficientArg>
+        template <typename Arg, typename ContactArg>
         LaplacianContact(BaseContactRelation &contact_relation,
-                         const std::string &in_variable_name, const std::string &out_variable_name,
-                         const CoefficientArg &coefficient_arg, const CoefficientArg &contact_coefficient_arg)
+                         const std::string &in_name, const std::string &out_name,
+                         const Arg &eta, const Arg &contact_eta)
             : OperatorContact<DataType, DataType, CoefficientType>(
-                  contact_relation, in_variable_name, out_variable_name, coefficient_arg, contact_coefficient_arg){};
+                  contact_relation, in_name, out_name, eta, contact_eta){};
         virtual ~LaplacianContact(){};
 
         void interaction(size_t index_i, Real dt)
@@ -112,12 +110,11 @@ namespace SPH
     class LaplacianFromWall : public OperatorFromBoundary<DataType, DataType, CoefficientType>
     {
     public:
-        template <typename CoefficientArg>
+        template <typename Arg>
         LaplacianFromWall(BaseContactRelation &contact_relation,
-                          const std::string &in_variable_name, const std::string &out_variable_name,
-                          const CoefficientArg &coefficient_arg)
+                          const std::string &in_name, const std::string &out_name, const Arg &eta)
             : OperatorFromBoundary<DataType, DataType, CoefficientType>(
-                  contact_relation, in_variable_name, out_variable_name, coefficient_arg){};
+                  contact_relation, in_name, out_name, eta){};
         virtual ~LaplacianFromWall(){};
 
         void interaction(size_t index_i, Real dt)
