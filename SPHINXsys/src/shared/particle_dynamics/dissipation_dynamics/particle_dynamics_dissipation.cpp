@@ -78,6 +78,46 @@ namespace SPH
         }
     }
     //=================================================================================================//
+    DampingCoefficientEvolutionExplicit::
+        DampingCoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
+                                            const std::string &variable_name,
+                                            const std::string &coefficient_name, Real threshold)
+        : LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
+          rho_(particles_->rho_),
+          variable_(*particles_->getVariableByName<Real>(variable_name)),
+          eta_(*particles_->template getVariableByName<Real>(coefficient_name)),
+          threshold_(threshold)
+    {
+        particles_->registerVariable(change_rate_, "DiffusionCoefficientChangeRate");
+    }
+    //=================================================================================================//
+    void DampingCoefficientEvolutionExplicit::interaction(size_t index_i, Real dt)
+    {
+        Real variable_i = variable_[index_i];
+        Real eta_i = eta_[index_i];
+
+        Real change_rate = 0.0;
+        const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            Real b_ij = 2.0 * inner_neighborhood.dW_ijV_j_[n] / inner_neighborhood.r_ij_[n];
+            size_t index_j = inner_neighborhood.j_[n];
+
+            Real variable_diff = (variable_i - variable_[index_j]);
+            Real variable_diff_abs = ABS(variable_diff);
+            Real coefficient_ave = 0.5 * (eta_i + eta_[index_j]);
+            Real coefficient_diff = 0.5 * (eta_i - eta_[index_j]);
+
+            change_rate += b_ij * (coefficient_ave * variable_diff + coefficient_diff * variable_diff_abs);
+        }
+        change_rate_[index_i] = change_rate / rho_[index_i];
+    }
+    //=================================================================================================//
+    void DampingCoefficientEvolutionExplicit::update(size_t index_i, Real dt)
+    {
+        eta_[index_i] += change_rate_[index_i] * dt;
+    }
+    //=================================================================================================//
     DampingCoefficientEvolutionFromWall::
         DampingCoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
                                             const std::string &variable_name,

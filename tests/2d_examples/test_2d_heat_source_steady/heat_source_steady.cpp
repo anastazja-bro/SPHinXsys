@@ -174,9 +174,8 @@ int main()
 		DampingPairwiseInnerCoefficientByParticle<Real>,
 		DampingPairwiseFromWallCoefficientByParticle<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
-	InteractionSplit<InteractionComplex<
-		DampingCoefficientEvolution, DampingCoefficientEvolutionFromWall>>
-		damping_coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 0.1);
+	InteractionWithUpdate<DampingCoefficientEvolutionExplicit>
+		damping_coefficient_evolution(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name, 0.1);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -239,7 +238,8 @@ int main()
 			{
 //				std::cout << "Maximum Laplacian Residue is " << normalized_residue << "\n";
 				write_states.writeToFile(ite);
-				damping_coefficient_evolution.parallel_exec(dt);
+				Real dt_coeff = 0.25 * resolution_ref * resolution_ref / reference_temperature;
+				damping_coefficient_evolution.parallel_exec(dt_coeff);
 				constrain_total_coefficient.parallel_exec();
 				write_states.writeToFile(ite + 1);
 			}
