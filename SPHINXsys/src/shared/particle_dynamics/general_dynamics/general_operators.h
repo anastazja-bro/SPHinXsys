@@ -90,6 +90,8 @@ namespace SPH
               out_variable_(*particles_->template getVariableByName<OutDataType>(out_name)),
               coefficient_(particles_, eta){};
         virtual ~OperatorInner(){};
+        StdLargeVec<InDataType> &InVariable() { return in_variable_; }
+        StdLargeVec<OutDataType> &OutVariable() { return out_variable_; }
 
     protected:
         StdLargeVec<InDataType> &in_variable_;

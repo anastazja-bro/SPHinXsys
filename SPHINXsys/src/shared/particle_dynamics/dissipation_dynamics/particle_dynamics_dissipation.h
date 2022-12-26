@@ -196,7 +196,7 @@ namespace SPH
 	{
 	public:
 		CoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
-											const std::string &variable_name, const std::string &eta, Real threshold);
+											const std::string &variable_name, const std::string &eta, Real source);
 		virtual ~CoefficientEvolutionExplicit(){};
 		void interaction(size_t index_i, Real dt);
 		void update(size_t index_i, Real dt);
@@ -206,7 +206,7 @@ namespace SPH
 		StdLargeVec<Real> change_rate_;
 		StdLargeVec<Real> &variable_;
 		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
-		Real threshold_;
+		Real source_;
 	};
 
 	/**
@@ -219,7 +219,7 @@ namespace SPH
 	{
 	public:
 		CoefficientEvolutionWithWallExplicit(ComplexRelation &complex_relation,
-											const std::string &variable_name, const std::string &eta, Real threshold);
+											const std::string &variable_name, const std::string &eta, Real source);
 		virtual ~CoefficientEvolutionWithWallExplicit(){};
 		void interaction(size_t index_i, Real dt);
 

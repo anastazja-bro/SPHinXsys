@@ -62,7 +62,7 @@ public:
 		  pos_(particles_->pos_){};
 	void update(size_t index_i, Real dt)
 	{
-		variable_[index_i] = 325.0 + 25.0 * (((double)rand() / (RAND_MAX)) - 0.5) * 2.0;
+		variable_[index_i] = 375.0 + 25.0 * (((double)rand() / (RAND_MAX)) - 0.5) * 2.0;
 	};
 
 protected:
@@ -102,6 +102,33 @@ public:
 
 protected:
 	StdLargeVec<Vecd> &pos_;
+};
+//----------------------------------------------------------------------
+//	Application dependent equation residue.
+//----------------------------------------------------------------------
+class ThermalEquationResidue
+	: public OperatorWithBoundary<LaplacianInner<Real, CoefficientByParticle<Real>>,
+								  LaplacianFromWall<Real, CoefficientByParticle<Real>>>
+
+{
+	Real source_;
+	StdLargeVec<Real> &residue_;
+
+public:
+	ThermalEquationResidue(ComplexRelation &complex_relation,
+						   const std::string &in_name, const std::string &out_name,
+						   const std::string &eta_name, Real source)
+		: OperatorWithBoundary<LaplacianInner<Real, CoefficientByParticle<Real>>,
+							   LaplacianFromWall<Real, CoefficientByParticle<Real>>>(
+			  complex_relation, in_name, out_name, eta_name),
+		  residue_(base_operator_.OutVariable()){};
+	void interaction(size_t index_i, Real dt)
+	{
+		OperatorWithBoundary<
+			LaplacianInner<Real, CoefficientByParticle<Real>>,
+			LaplacianFromWall<Real, CoefficientByParticle<Real>>>::interaction(index_i, dt);
+		residue_[index_i] += source_;
+	};
 };
 //----------------------------------------------------------------------
 //	Main program starts here.
@@ -157,13 +184,11 @@ int main()
 	SimpleDynamics<DiffusionCoefficientDistribution> coefficient_distribution(diffusion_body);
 	SimpleDynamics<ConstraintTotalScalarAmount> constrain_total_coefficient(diffusion_body, coefficient_name);
 	SimpleDynamics<ImposingSourceTerm<Real>> thermal_source(diffusion_body, variable_name, heat_source);
-	SimpleDynamics<ImposingSourceTerm<Real>> impose_optimization_target(diffusion_body, variable_name, -learning_strength);
-	SimpleDynamics<ImposingSourceTerm<Real>> cancel_optimization_target(diffusion_body, variable_name, learning_strength);
-	InteractionDynamics<OperatorWithBoundary<
-		LaplacianInner<Real, CoefficientByParticle<Real>>,
-		LaplacianFromWall<Real, CoefficientByParticle<Real>>>>
-		thermal_equation_residue(diffusion_body_complex, variable_name, residue_name, coefficient_name);
-	ReduceDynamics<MaximumNorm<Real>> maximum_laplacian_residue(diffusion_body, residue_name);
+	InteractionDynamics<ThermalEquationResidue>
+		thermal_equation_residue(diffusion_body_complex, variable_name, residue_name, coefficient_name, heat_source);
+	InteractionDynamics<ThermalEquationResidue>
+		target_equation_residue(diffusion_body_complex, variable_name, residue_name, coefficient_name, 2.0 * heat_source);
+	ReduceDynamics<MaximumNorm<Real>> maximum_equation_residue(diffusion_body, residue_name);
 	ReduceDynamics<QuantityMoment<Real>> total_coefficient(diffusion_body, coefficient_name);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -178,9 +203,12 @@ int main()
 		DampingPairwiseFromWallCoefficientByParticle<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
 	InteractionWithUpdate<CoefficientEvolutionWithWallExplicit>
-		coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 0.1);
-	InteractionSplit<DampingCoefficient> 
-		damping_coefficient(diffusion_body_complex.getInnerRelation(), variable_name, coefficient_name, 1.0);
+		coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 2.0 * heat_source);
+	// InteractionSplit<CoefficientEvolutionFromWall>
+	//	coefficient_evolution_from_wall(diffusion_body_complex.getContactRelation(), variable_name, coefficient_name, 0.1);
+
+	InteractionSplit<DampingPairwiseInner<Real>>
+		damping_coefficient(diffusion_body_complex.getInnerRelation(), coefficient_name, 1.0);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -208,18 +236,11 @@ int main()
 	Real T0 = 10.0;
 	Real End_Time = T0;
 	Real Observe_time = 0.01 * End_Time;
-	Real dt = 1.0 / 1000.0;
-	Real dt_coeff = 0.25 * resolution_ref * resolution_ref / reference_temperature;
-	int restart_output_interval = 1000;
-	size_t learning_steps = 10;
+	Real dt = 1.0e-5;
+	Real dt_coeff = SMIN(dt, 0.25 * resolution_ref * resolution_ref / reference_temperature);
 
 	/** Output global basic parameters.*/
 	write_states.writeToFile(ite);
-	//----------------------------------------------------------------------
-	//	Statistics for CPU time
-	//----------------------------------------------------------------------
-	tick_count t1 = tick_count::now();
-	tick_count::interval_t interval;
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
@@ -229,44 +250,32 @@ int main()
 		while (relaxation_time < Observe_time)
 		{
 			thermal_source.parallel_exec(dt);
-
-			if (ite % 100 == 0)
-			{
-				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
-				std::cout << "Total coefficient is " << total_coefficient.parallel_exec() << "\n";
-			}
-
 			implicit_heat_transfer_solver.parallel_exec(dt);
 
 			thermal_equation_residue.parallel_exec();
-			Real normalized_residue = resolution_ref * resolution_ref * maximum_laplacian_residue.parallel_exec() /
-									  reference_temperature / diffusion_coff;
-			impose_optimization_target.parallel_exec(dt);
-			for (size_t k = 0; k < learning_steps; ++k)
+			Real equation_residue_max = maximum_equation_residue.parallel_exec();
+			Real target_residue_max = equation_residue_max + heat_source;
+			while (target_residue_max > equation_residue_max)
 			{
 				coefficient_evolution.parallel_exec(dt_coeff);
-				damping_coefficient.parallel_exec(dt_coeff);
+				constrain_total_coefficient.parallel_exec();
+				target_equation_residue.parallel_exec();
+				target_residue_max = maximum_equation_residue.parallel_exec();
 			}
-			constrain_total_coefficient.parallel_exec();
-			cancel_optimization_target.parallel_exec(dt);
 
 			ite++;
 			relaxation_time += dt;
 			GlobalStaticVariables::physical_time_ += dt;
 
-			if (ite % restart_output_interval == 0)
+			if (ite % 100 == 0)
 			{
-				restart_io.writeToFile(ite);
+				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
+				std::cout << "Total coefficient is " << total_coefficient.parallel_exec() << "\n";
+				write_states.writeToFile(ite);
 			}
 		}
-
-		write_states.writeToFile(ite);
 	}
 
-	tick_count t4 = tick_count::now();
-	tick_count::interval_t tt;
-	tt = t4 - t1;
 	std::cout << "The computation has finished, but the solution is still not steady yet." << std::endl;
-	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 	return 0;
 }
