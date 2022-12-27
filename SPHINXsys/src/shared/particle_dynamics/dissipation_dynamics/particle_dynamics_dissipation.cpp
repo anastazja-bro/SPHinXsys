@@ -8,6 +8,111 @@
 namespace SPH
 {
     //=================================================================================================//
+    CoefficientSplittingInner::
+        CoefficientSplittingInner(BaseInnerRelation &inner_relation,
+                                  const std::string &variable_name,
+                                  const std::string &coefficient_name,
+                                  Real source)
+        : LocalDynamics(inner_relation.sph_body_),
+          DissipationDataInner(inner_relation),
+          Vol_(particles_->Vol_), mass_(particles_->mass_), source_(source),
+          variable_(*particles_->getVariableByName<Real>(variable_name)),
+          eta_(*particles_->getVariableByName<Real>(variable_name)) {}
+    //=================================================================================================//
+    std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
+    CoefficientSplittingInner::computeErrorAndParameters(size_t index_i, Real dt)
+    {
+        Real Vol_i = Vol_[index_i];
+        Real mass_i = mass_[index_i];
+        Real variable_i = variable_[index_i];
+        Real eta_i = eta_[index_i];
+        ErrorAndParameters<Real> error_and_parameters_plus;
+        ErrorAndParameters<Real> error_and_parameters_minus;
+
+        error_and_parameters_plus.error_ = -source_ * dt;
+        error_and_parameters_minus.error_ = source_ * dt;
+        Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = inner_neighborhood.j_[n];
+            Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+            Real variable_diff = (variable_i - variable_[index_j]);
+            Real variable_diff_abs = ABS(variable_diff);
+            Real coefficient_ave = 0.5 * (eta_i + eta_[index_j]);
+            Real coefficient_diff = 0.5 * (eta_i - eta_[index_j]);
+
+            error_and_parameters_plus.error_ -= parameter_b * (coefficient_diff * variable_diff_abs + coefficient_ave * variable_diff);
+            error_and_parameters_plus.a_ += 0.5 * parameter_b * (variable_diff_abs + variable_diff);
+            error_and_parameters_plus.c_ += 0.25 * parameter_b * parameter_b * (variable_diff_abs - variable_diff) * (variable_diff_abs - variable_diff);
+
+            error_and_parameters_minus.error_ -= parameter_b * (coefficient_diff * variable_diff_abs - coefficient_ave * variable_diff);
+            error_and_parameters_minus.a_ += 0.5 * parameter_b * (variable_diff_abs - variable_diff);
+            error_and_parameters_minus.c_ += 0.25 * parameter_b * parameter_b * (variable_diff_abs + variable_diff) * (variable_diff_abs + variable_diff);
+        }
+        error_and_parameters_plus.a_ -= mass_i;
+        error_and_parameters_minus.a_ -= mass_i;
+        return std::pair(error_and_parameters_plus, error_and_parameters_minus);
+    }
+    //=================================================================================================//
+    void CoefficientSplittingInner::
+        updateStates(size_t index_i, Real dt,
+                     const std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>> &error_and_parameters)
+    {
+        Real error_plus_norm = ABS(error_and_parameters.first.error_);
+        Real parameter_l_plus = error_and_parameters.first.a_ * error_and_parameters.first.a_ + error_and_parameters.first.c_;
+        Real parameter_k_plus = error_and_parameters.first.error_ / (parameter_l_plus + TinyReal);
+        Real increment_i_plus = parameter_k_plus * error_and_parameters.first.a_;
+        Real increment_i_plus_norm = ABS(increment_i_plus);
+
+        Real error_minus_norm = ABS(error_and_parameters.second.error_);
+        Real parameter_l_minus = error_and_parameters.second.a_ * error_and_parameters.second.a_ + error_and_parameters.second.c_;
+        Real parameter_k_minus = error_and_parameters.second.error_ / (parameter_l_minus + TinyReal);
+        Real increment_i_minus = parameter_k_minus * error_and_parameters.second.a_;
+        Real increment_i_minus_norm = ABS(increment_i_minus);
+
+        if (increment_i_plus_norm < error_plus_norm || increment_i_minus_norm < error_minus_norm)
+        {
+            Real variable_i = variable_[index_i];
+            Real &eta_i = eta_[index_i];
+            Real final_parameter_k = parameter_k_plus;
+            Real final_increment_i = increment_i_plus;
+            Real sign = 1.0;
+            if (increment_i_plus_norm > increment_i_minus_norm)
+            {
+                Real final_parameter_k = parameter_k_minus;
+                Real final_increment_i = increment_i_minus;
+                sign = -1.0;
+            }
+            eta_i += final_increment_i;
+
+            Real Vol_i = Vol_[index_i];
+            Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+            for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = inner_neighborhood.j_[n];
+
+                Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+
+                // predicted quantity at particle j
+                Real variable_diff = sign * (variable_i - variable_[index_j]);
+                Real variable_diff_abs = ABS(variable_diff);
+                Real eta_j = eta_[index_j] - final_parameter_k * 0.5 * parameter_b * (variable_diff - variable_diff_abs);
+
+                // exchange in conservation form
+                Real coefficient_ave = 0.5 * (eta_i + eta_j);
+                Real coefficient_diff = 0.5 * (eta_i - eta_j);
+                eta_[index_j] -= parameter_b * (coefficient_ave * variable_diff + coefficient_diff * variable_diff_abs) / mass_[index_j];
+            }
+        }
+    }
+    //=================================================================================================//
+    void CoefficientSplittingInner::interaction(size_t index_i, Real dt)
+    {
+        std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
+            error_and_parameters = computeErrorAndParameters(index_i, dt);
+        updateStates(index_i, dt, error_and_parameters);
+    }
+    //=================================================================================================//
     CoefficientEvolution::
         CoefficientEvolution(BaseInnerRelation &inner_relation, const std::string &variable_name,
                              const std::string &coefficient_name, Real threshold)

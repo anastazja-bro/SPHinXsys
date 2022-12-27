@@ -111,6 +111,36 @@ namespace SPH
 	};
 
 	/**
+	 * @class CoefficientSplittingInner
+	 * @brief
+	 */
+	class CoefficientSplittingInner : public LocalDynamics, public DissipationDataInner
+	{
+	protected:
+	public:
+		CoefficientSplittingInner(BaseInnerRelation &inner_relation,
+								  const std::string &variable_name,
+								  const std::string &coefficient_name,
+								  Real source);
+		virtual ~CoefficientSplittingInner(){};
+		void interaction(size_t index_i, Real dt = 0.0);
+
+	protected:
+		StdLargeVec<Real> &Vol_, &mass_;
+		Real source_;
+		StdLargeVec<Real> &variable_;
+		StdLargeVec<Real> &eta_; /**< damping coefficient */
+
+		std::pair<ErrorAndParameters<Real>,
+				  ErrorAndParameters<Real>>
+		computeErrorAndParameters(size_t index_i, Real dt = 0.0);
+
+		virtual void updateStates(size_t index_i, Real dt,
+								  const std::pair<ErrorAndParameters<Real>,
+												  ErrorAndParameters<Real>> &error_and_parameters);
+	};
+
+	/**
 	 * @class BaseDampingPairwiseInner
 	 * @brief Base class for a quantity damping by a pairwise splitting scheme
 	 * this method modifies the quantity directly
@@ -176,7 +206,7 @@ namespace SPH
 	{
 	public:
 		CoefficientEvolution(BaseInnerRelation &inner_relation,
-									const std::string &variable_name, const std::string &eta, Real threshold);
+							 const std::string &variable_name, const std::string &eta, Real threshold);
 		virtual ~CoefficientEvolution(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -196,7 +226,7 @@ namespace SPH
 	{
 	public:
 		CoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
-											const std::string &variable_name, const std::string &eta, Real source);
+									 const std::string &variable_name, const std::string &eta, Real source);
 		virtual ~CoefficientEvolutionExplicit(){};
 		void interaction(size_t index_i, Real dt);
 		void update(size_t index_i, Real dt);
@@ -215,11 +245,11 @@ namespace SPH
 	 * TODO: to be generalized for different data type
 	 */
 	class CoefficientEvolutionWithWallExplicit : public CoefficientEvolutionExplicit,
-														public DissipationDataWithWall
+												 public DissipationDataWithWall
 	{
 	public:
 		CoefficientEvolutionWithWallExplicit(ComplexRelation &complex_relation,
-											const std::string &variable_name, const std::string &eta, Real source);
+											 const std::string &variable_name, const std::string &eta, Real source);
 		virtual ~CoefficientEvolutionWithWallExplicit(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -233,11 +263,11 @@ namespace SPH
 	 * TODO: to be generalized for different data type
 	 */
 	class CoefficientEvolutionFromWall : public LocalDynamics,
-												public DataDelegateContact<BaseParticles, SolidParticles>
+										 public DataDelegateContact<BaseParticles, SolidParticles>
 	{
 	public:
 		CoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
-											const std::string &variable_name, const std::string &eta, Real threshold);
+									 const std::string &variable_name, const std::string &eta, Real threshold);
 		virtual ~CoefficientEvolutionFromWall(){};
 		void interaction(size_t index_i, Real dt);
 
@@ -258,7 +288,7 @@ namespace SPH
 	{
 	public:
 		DampingCoefficient(BaseInnerRelation &inner_relation,
-									const std::string &variable_name, const std::string &eta, Real strength);
+						   const std::string &variable_name, const std::string &eta, Real strength);
 		virtual ~DampingCoefficient(){};
 		void interaction(size_t index_i, Real dt);
 
