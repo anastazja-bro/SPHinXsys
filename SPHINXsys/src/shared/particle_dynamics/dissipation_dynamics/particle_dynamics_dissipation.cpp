@@ -113,6 +113,49 @@ namespace SPH
         updateStates(index_i, dt, error_and_parameters);
     }
     //=================================================================================================//
+    CoefficientSplittingWithWall::
+        CoefficientSplittingWithWall(ComplexRelation &complex_wall_relation,
+                                     const std::string &variable_name,
+                                     const std::string &coefficient_name,
+                                     Real source)
+        : CoefficientSplittingInner(complex_wall_relation.getInnerRelation(), variable_name, coefficient_name, source),
+          DissipationDataWithWall(complex_wall_relation.getContactRelation())
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            wall_variable_.push_back(contact_particles_[k]->template getVariableByName<Real>(variable_name));
+        }
+    }
+    //=================================================================================================//
+    std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
+    CoefficientSplittingWithWall::
+        computeErrorAndParameters(size_t index_i, Real dt)
+    {
+        std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>> error_and_parameters =
+            CoefficientSplittingInner::computeErrorAndParameters(index_i, dt);
+
+        Real Vol_i = Vol_[index_i];
+        Real variable_i = variable_[index_i];
+        Real eta_i = eta_[index_i];
+
+        ErrorAndParameters<Real> error_and_parameters_plus = error_and_parameters.first;
+        ErrorAndParameters<Real> error_and_parameters_minus = error_and_parameters.second;
+        Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = inner_neighborhood.j_[n];
+            Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+            Real variable_diff = (variable_i - variable_[index_j]);
+
+            error_and_parameters_plus.error_ -= parameter_b * eta_i * variable_diff;
+            error_and_parameters_plus.a_ += 0.5 * parameter_b * variable_diff;
+
+            error_and_parameters_minus.error_ += parameter_b * eta_i * variable_diff;
+            error_and_parameters_minus.a_ -= 0.5 * parameter_b * variable_diff;
+        }
+        return std::pair(error_and_parameters_plus, error_and_parameters_minus);
+    }
+    //=================================================================================================//
     CoefficientEvolution::
         CoefficientEvolution(BaseInnerRelation &inner_relation, const std::string &variable_name,
                              const std::string &coefficient_name, Real threshold)

@@ -131,13 +131,34 @@ namespace SPH
 		StdLargeVec<Real> &variable_;
 		StdLargeVec<Real> &eta_; /**< damping coefficient */
 
-		std::pair<ErrorAndParameters<Real>,
-				  ErrorAndParameters<Real>>
+		virtual std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
 		computeErrorAndParameters(size_t index_i, Real dt = 0.0);
 
 		virtual void updateStates(size_t index_i, Real dt,
 								  const std::pair<ErrorAndParameters<Real>,
 												  ErrorAndParameters<Real>> &error_and_parameters);
+	};
+
+	/**
+	 * @class CoefficientSplittingWithWall
+	 * @brief
+	 */
+	class CoefficientSplittingWithWall : public CoefficientSplittingInner, public DissipationDataWithWall
+	{
+	protected:
+	public:
+		CoefficientSplittingWithWall(ComplexRelation &complex_wall_relation,
+									 const std::string &variable_name,
+									 const std::string &coefficient_name,
+									 Real source);
+		virtual ~CoefficientSplittingWithWall(){};
+
+	protected:
+		virtual std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
+		computeErrorAndParameters(size_t index_i, Real dt = 0.0) override;
+
+	private:
+		StdVec<StdLargeVec<Real> *> wall_variable_;
 	};
 
 	/**
