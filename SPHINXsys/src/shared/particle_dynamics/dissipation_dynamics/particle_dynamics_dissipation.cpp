@@ -17,7 +17,7 @@ namespace SPH
           DissipationDataInner(inner_relation),
           Vol_(particles_->Vol_), mass_(particles_->mass_), source_(source),
           variable_(*particles_->getVariableByName<Real>(variable_name)),
-          eta_(*particles_->getVariableByName<Real>(variable_name)) {}
+          eta_(*particles_->getVariableByName<Real>(coefficient_name)) {}
     //=================================================================================================//
     std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
     CoefficientSplittingInner::computeErrorAndParameters(size_t index_i, Real dt)
@@ -31,7 +31,7 @@ namespace SPH
 
         error_and_parameters_plus.error_ = -source_ * dt;
         error_and_parameters_minus.error_ = source_ * dt;
-        Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+        const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             size_t index_j = inner_neighborhood.j_[n];
@@ -72,20 +72,20 @@ namespace SPH
 
         if (increment_i_plus_norm < error_plus_norm || increment_i_minus_norm < error_minus_norm)
         {
-            Real variable_i = variable_[index_i];
             Real &eta_i = eta_[index_i];
             Real final_parameter_k = parameter_k_plus;
             Real final_increment_i = increment_i_plus;
             Real sign = 1.0;
             if (increment_i_plus_norm > increment_i_minus_norm)
             {
-                Real final_parameter_k = parameter_k_minus;
-                Real final_increment_i = increment_i_minus;
+                final_parameter_k = parameter_k_minus;
+                final_increment_i = increment_i_minus;
                 sign = -1.0;
             }
             eta_i += final_increment_i;
 
             Real Vol_i = Vol_[index_i];
+            Real variable_i = variable_[index_i];
             Neighborhood &inner_neighborhood = inner_configuration_[index_i];
             for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
             {
@@ -96,7 +96,7 @@ namespace SPH
                 // predicted quantity at particle j
                 Real variable_diff = sign * (variable_i - variable_[index_j]);
                 Real variable_diff_abs = ABS(variable_diff);
-                Real eta_j = eta_[index_j] - final_parameter_k * 0.5 * parameter_b * (variable_diff - variable_diff_abs);
+                Real eta_j = eta_[index_j] + final_parameter_k * 0.5 * parameter_b * (variable_diff - variable_diff_abs);
 
                 // exchange in conservation form
                 Real coefficient_ave = 0.5 * (eta_i + eta_j);
@@ -140,18 +140,22 @@ namespace SPH
 
         ErrorAndParameters<Real> error_and_parameters_plus = error_and_parameters.first;
         ErrorAndParameters<Real> error_and_parameters_minus = error_and_parameters.second;
-        Neighborhood &inner_neighborhood = inner_configuration_[index_i];
-        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
         {
-            size_t index_j = inner_neighborhood.j_[n];
-            Real parameter_b = 2.0 * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
-            Real variable_diff = (variable_i - variable_[index_j]);
+            StdLargeVec<Real> &variable_k = *(this->wall_variable_[k]);
+            Neighborhood &contact_neighborhood = (*DissipationDataWithWall::contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Real parameter_b = 2.0 * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
+                Real variable_diff = (variable_i - variable_k[index_j]);
 
-            error_and_parameters_plus.error_ -= parameter_b * eta_i * variable_diff;
-            error_and_parameters_plus.a_ += 0.5 * parameter_b * variable_diff;
+                error_and_parameters_plus.error_ -= parameter_b * eta_i * variable_diff;
+                error_and_parameters_plus.a_ += 0.5 * parameter_b * variable_diff;
 
-            error_and_parameters_minus.error_ += parameter_b * eta_i * variable_diff;
-            error_and_parameters_minus.a_ -= 0.5 * parameter_b * variable_diff;
+                error_and_parameters_minus.error_ += parameter_b * eta_i * variable_diff;
+                error_and_parameters_minus.a_ -= 0.5 * parameter_b * variable_diff;
+            }
         }
         return std::pair(error_and_parameters_plus, error_and_parameters_minus);
     }

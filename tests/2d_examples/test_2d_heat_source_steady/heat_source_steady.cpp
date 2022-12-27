@@ -202,13 +202,8 @@ int main()
 		DampingPairwiseInnerCoefficientByParticle<Real>,
 		DampingPairwiseFromWallCoefficientByParticle<Real>>>
 		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
-	InteractionWithUpdate<CoefficientEvolutionWithWallExplicit>
-		coefficient_evolution(diffusion_body_complex, variable_name, coefficient_name, 2.0 * heat_source);
-	// InteractionSplit<CoefficientEvolutionFromWall>
-	//	coefficient_evolution_from_wall(diffusion_body_complex.getContactRelation(), variable_name, coefficient_name, 0.1);
-
-	InteractionSplit<DampingPairwiseInner<Real>>
-		damping_coefficient(diffusion_body_complex.getInnerRelation(), coefficient_name, 1.0);
+	InteractionSplit<CoefficientSplittingWithWall>
+		coefficient_evolution_with_wall(diffusion_body_complex, variable_name, coefficient_name, 2.0 * heat_source);
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -257,7 +252,7 @@ int main()
 			Real target_residue_max = equation_residue_max + heat_source;
 			while (target_residue_max > equation_residue_max)
 			{
-				coefficient_evolution.parallel_exec(dt_coeff);
+				coefficient_evolution_with_wall.exec(dt_coeff);
 				constrain_total_coefficient.parallel_exec();
 				target_equation_residue.parallel_exec();
 				target_residue_max = maximum_equation_residue.parallel_exec();
