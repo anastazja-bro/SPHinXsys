@@ -111,57 +111,6 @@ namespace SPH
 	};
 
 	/**
-	 * @class CoefficientSplittingInner
-	 * @brief
-	 */
-	class CoefficientSplittingInner : public LocalDynamics, public DissipationDataInner
-	{
-	protected:
-	public:
-		CoefficientSplittingInner(BaseInnerRelation &inner_relation,
-								  const std::string &variable_name,
-								  const std::string &coefficient_name,
-								  Real source);
-		virtual ~CoefficientSplittingInner(){};
-		void interaction(size_t index_i, Real dt = 0.0);
-
-	protected:
-		StdLargeVec<Real> &Vol_, &mass_;
-		Real source_;
-		StdLargeVec<Real> &variable_;
-		StdLargeVec<Real> &eta_; /**< damping coefficient */
-
-		virtual std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
-		computeErrorAndParameters(size_t index_i, Real dt = 0.0);
-
-		virtual void updateStates(size_t index_i, Real dt,
-								  const std::pair<ErrorAndParameters<Real>,
-												  ErrorAndParameters<Real>> &error_and_parameters);
-	};
-
-	/**
-	 * @class CoefficientSplittingWithWall
-	 * @brief
-	 */
-	class CoefficientSplittingWithWall : public CoefficientSplittingInner, public DissipationDataWithWall
-	{
-	protected:
-	public:
-		CoefficientSplittingWithWall(ComplexRelation &complex_wall_relation,
-									 const std::string &variable_name,
-									 const std::string &coefficient_name,
-									 Real source);
-		virtual ~CoefficientSplittingWithWall(){};
-
-	protected:
-		virtual std::pair<ErrorAndParameters<Real>, ErrorAndParameters<Real>>
-		computeErrorAndParameters(size_t index_i, Real dt = 0.0) override;
-
-	private:
-		StdVec<StdLargeVec<Real> *> wall_variable_;
-	};
-
-	/**
 	 * @class BaseDampingPairwiseInner
 	 * @brief Base class for a quantity damping by a pairwise splitting scheme
 	 * this method modifies the quantity directly
@@ -226,15 +175,16 @@ namespace SPH
 	class CoefficientEvolution : public LocalDynamics, public DissipationDataInner
 	{
 	public:
-		CoefficientEvolution(BaseInnerRelation &inner_relation,
-							 const std::string &variable_name, const std::string &eta, Real threshold);
-		virtual ~CoefficientEvolution(){};
+		CoefficientEvolution(BaseInnerRelation& inner_relation,
+			const std::string& variable_name, const std::string& eta,
+			const std::string& reference_coefficient, Real threshold);
+		virtual ~CoefficientEvolution() {};
 		void interaction(size_t index_i, Real dt);
 
 	protected:
-		StdLargeVec<Real> &Vol_, &mass_;
-		StdLargeVec<Real> &variable_;
-		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+		StdLargeVec<Real>& Vol_, & mass_;
+		StdLargeVec<Real>& variable_;
+		StdLargeVec<Real>& eta_, &eta_ref_; /**< variable damping coefficient */
 		Real threshold_;
 	};
 
@@ -251,12 +201,13 @@ namespace SPH
 		virtual ~CoefficientEvolutionExplicit(){};
 		void interaction(size_t index_i, Real dt);
 		void update(size_t index_i, Real dt);
+		void setSource(Real source) { source_ = source; };
 
 	protected:
 		StdLargeVec<Real> &rho_;
 		StdLargeVec<Real> change_rate_;
 		StdLargeVec<Real> &variable_;
-		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+		StdLargeVec<Real> &eta_, eta_ref_; /**< variable damping coefficient */
 		Real source_;
 	};
 
@@ -288,14 +239,15 @@ namespace SPH
 	{
 	public:
 		CoefficientEvolutionFromWall(BaseContactRelation &contact_relation,
-									 const std::string &variable_name, const std::string &eta, Real threshold);
+									 const std::string &variable_name, const std::string &eta, 
+			const std::string& reference_coefficient, Real threshold);
 		virtual ~CoefficientEvolutionFromWall(){};
 		void interaction(size_t index_i, Real dt);
 
 	protected:
 		StdLargeVec<Real> &Vol_, &mass_;
 		StdLargeVec<Real> &variable_;
-		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
+		StdLargeVec<Real> &eta_, &eta_ref_; /**< variable damping coefficient */
 		StdVec<StdLargeVec<Real> *> wall_variable_;
 		Real threshold_;
 	};
@@ -384,19 +336,16 @@ namespace SPH
 	class DampingWithWall : public LocalDynamics
 	{
 	public:
-		template <class BodyRelationType, typename Arg>
+		template <class BodyRelationType, typename... Args>
 		DampingWithWall(BodyRelationType &body_relation,
-						BaseContactRelation &relation_to_boundary,
-						const std::string &variable_name, const Arg &eta)
+						BaseContactRelation &relation_to_boundary, Args &&...args)
 			: LocalDynamics(body_relation.sph_body_),
-			  base_operator_(body_relation, variable_name, eta),
-			  damping_from_wall_(relation_to_boundary, variable_name, eta){};
-		template <typename Arg, typename... ExtraCoefficientArg>
-		DampingWithWall(ComplexRelation &complex_relation,
-						const std::string &variable_name, const Arg &eta)
+			  base_operator_(body_relation, std::forward<Args>(args)...),
+			  damping_from_wall_(relation_to_boundary, std::forward<Args>(args)...){};
+		template <typename... Args>
+		DampingWithWall(ComplexRelation &complex_relation, Args &&...args)
 			: DampingWithWall(complex_relation.getInnerRelation(),
-							  complex_relation.getContactRelation(),
-							  variable_name, eta){};
+							  complex_relation.getContactRelation(), std::forward<Args>(args)...){};
 		virtual ~DampingWithWall(){};
 
 		void interaction(size_t index_i, Real dt)

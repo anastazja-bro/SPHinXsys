@@ -73,6 +73,7 @@ namespace SPH
 			  variable_(*particles_->getVariableByName<DataType>(variable_name)),
 			  source_strength_(source_strength){};
 		virtual ~ImposingSourceTerm(){};
+		void setSourceStrength(Real source_strength) { source_strength_ = source_strength; };
 		void update(size_t index_i, Real dt)
 		{
 			variable_[index_i] += source_strength_ * dt;
