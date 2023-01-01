@@ -96,7 +96,6 @@ namespace SPH
 		virtual ErrorAndParameters<VariableType> computeErrorAndParameters(size_t index_i, Real dt = 0.0) override;
 
 	private:
-		StdVec<StdLargeVec<Real> *> wall_Vol_;
 		StdVec<StdLargeVec<VariableType> *> wall_variable_;
 	};
 

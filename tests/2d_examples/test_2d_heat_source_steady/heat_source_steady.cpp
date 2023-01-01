@@ -192,8 +192,8 @@ protected:
 			Real coefficient_ave = 0.5 * (eta_i + eta_[index_j]);
 
 			error_and_parameters.error_ -= parameter_b * coefficient_ave * variable_diff;
-			error_and_parameters.a_ += 0.5 * parameter_b * coefficient_ave;
-			error_and_parameters.c_ += 0.25 * parameter_b * parameter_b * coefficient_ave * coefficient_ave;
+			error_and_parameters.a_ += parameter_b * coefficient_ave;
+			error_and_parameters.c_ += parameter_b * parameter_b * coefficient_ave * coefficient_ave;
 		}
 		error_and_parameters.a_ -= mass_i;
 		return error_and_parameters;
@@ -218,11 +218,11 @@ protected:
 			Real coefficient_ave = 0.5 * (eta_i + eta_[index_j]);
 
 			// predicted quantity at particle j
-			Real variable_j = variable_[index_j] - parameter_k * parameter_b;
+			Real variable_j = variable_[index_j] - parameter_k * parameter_b * coefficient_ave;
 			Real variable_derivative = (variable_i - variable_j);
 
 			// exchange in conservation form
-			variable_[index_j] -= variable_derivative * parameter_b / mass_[index_j];
+			variable_[index_j] -= variable_derivative * parameter_b * coefficient_ave / mass_[index_j];
 		}
 	};
 };
@@ -364,11 +364,11 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<DampingSplittingWithWallCoefficientByParticle<Real>>
-		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
+	InteractionSplit<ThermalSplittingWithWall>
+		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name, 0.0);
 	InteractionWithUpdate<CoefficientEvolutionWithWallExplicit>
 		coefficient_evolution_with_wall(diffusion_body_complex, variable_name, coefficient_name, 0.0);
-	SimpleDynamics<ReferenceDiffusionCoefficient> update_refence_coefficient(diffusion_body, "ReferenceDiffusionCoefficient");
+	SimpleDynamics<ReferenceDiffusionCoefficient> update_reference_coefficient(diffusion_body, "ReferenceDiffusionCoefficient");
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -429,7 +429,7 @@ int main()
 				}
 			}
 
-			update_refence_coefficient.parallel_exec();
+			update_reference_coefficient.parallel_exec();
 			for (size_t k = 0; k != 10; ++k)
 			{
 				target_source.parallel_exec(dt_coeff);

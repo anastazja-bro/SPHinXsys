@@ -47,10 +47,10 @@ namespace SPH
 	{
 		Real parameter_l = error_and_parameters.a_ * error_and_parameters.a_ + error_and_parameters.c_;
 		VariableType parameter_k = error_and_parameters.error_ / (parameter_l + TinyReal);
-		this->variable_[index_i] += parameter_k * error_and_parameters.a_;
+		VariableType &variable_i = variable_[index_i];
+		variable_i += parameter_k * error_and_parameters.a_;
 
 		Real Vol_i = Vol_[index_i];
-		VariableType &variable_i = variable_[index_i];
 		Neighborhood &inner_neighborhood = this->inner_configuration_[index_i];
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
@@ -86,7 +86,6 @@ namespace SPH
 	{
 		for (size_t k = 0; k != DissipationDataWithWall::contact_particles_.size(); ++k)
 		{
-			wall_Vol_.push_back(&(contact_particles_[k]->Vol_));
 			wall_variable_.push_back(contact_particles_[k]->template getVariableByName<VariableType>(variable_name));
 		}
 	}
@@ -97,7 +96,7 @@ namespace SPH
 		computeErrorAndParameters(size_t index_i, Real dt)
 	{
 		ErrorAndParameters<VariableType> error_and_parameters =
-			BaseDampingSplittingWithWall<VariableType, CoefficientType>::computeErrorAndParameters(index_i, dt);
+			BaseDampingSplittingInner<VariableType, CoefficientType>::computeErrorAndParameters(index_i, dt);
 
 		const VariableType &variable_i = this->variable_[index_i];
 		Real Vol_i = this->Vol_[index_i];
@@ -112,7 +111,7 @@ namespace SPH
 
 				// linear projection
 				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
+				Real parameter_b = 2.0 * this->coefficient_(index_i, index_i) *
 								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
 
 				error_and_parameters.error_ -= variable_derivative * parameter_b;
