@@ -98,7 +98,7 @@ namespace SPH
     {
         Real variable_i = variable_[index_i];
         Real eta_i = eta_[index_i];
-        Real incremnet_eta_i = eta_[index_i] - eta_ref_[index_i];
+        Real increment_eta_i = eta_[index_i] - eta_ref_[index_i];
 
         Real change_rate = source_;
         const Neighborhood& inner_neighborhood = inner_configuration_[index_i];
@@ -109,8 +109,8 @@ namespace SPH
 
             Real variable_diff = (variable_i - variable_[index_j]);
             Real variable_diff_abs = ABS(variable_diff);
-            Real incremnet_eta_j = eta_[index_j] - eta_ref_[index_j];
-            Real coefficient_ave = 0.5 * (incremnet_eta_i + (eta_[index_j] - eta_ref_[index_j]));
+            Real increment_eta_j = eta_[index_j] - eta_ref_[index_j];
+            Real coefficient_ave = 0.5 * (increment_eta_i + (eta_[index_j] - eta_ref_[index_j]));
             Real coefficient_diff = 0.5 * (eta_i - eta_[index_j]);
  
             change_rate += b_ij * (coefficient_ave * variable_diff + coefficient_diff * variable_diff_abs);
@@ -144,7 +144,7 @@ namespace SPH
         CoefficientEvolutionExplicit::interaction(index_i, dt);
 
         Real variable_i = variable_[index_i];
-        Real incremnet_eta_i = eta_[index_i] - eta_ref_[index_i];
+        Real increment_eta_i = eta_[index_i] - eta_ref_[index_i];
 
         Real change_rate = 0.0;
         for (size_t k = 0; k < contact_configuration_.size(); ++k)
@@ -157,7 +157,7 @@ namespace SPH
                 size_t index_j = contact_neighborhood.j_[n];
 
                 Real variable_diff = (variable_i - variable_k[index_j]);
-                change_rate += b_ij * incremnet_eta_i * variable_diff;
+                change_rate += b_ij * increment_eta_i * variable_diff;
             }
         }
         change_rate_[index_i] += change_rate / rho_[index_i];

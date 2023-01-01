@@ -6,30 +6,32 @@
 namespace SPH
 {
 	//=================================================================================================//
-	template <typename VariableType>
-	DampingBySplittingInner<VariableType>::
-		DampingBySplittingInner(BaseInnerRelation &inner_relation,
-								const std::string &variable_name, Real eta)
-		: LocalDynamics(inner_relation.sph_body_),
-		  DissipationDataInner(inner_relation), eta_(eta),
-		  Vol_(particles_->Vol_), mass_(particles_->mass_),
-		  variable_(*particles_->getVariableByName<VariableType>(variable_name)) {}
+	template <typename VariableType, class CoefficientType>
+	template <typename CoefficientArg>
+	BaseDampingSplittingInner<VariableType, CoefficientType>::
+		BaseDampingSplittingInner(BaseInnerRelation &inner_relation,
+								  const std::string &variable_name, const CoefficientArg &eta)
+		: OperatorInner<VariableType, VariableType, CoefficientType>(
+			  inner_relation, variable_name, variable_name, eta),
+		  Vol_(this->particles_->Vol_), mass_(this->particles_->mass_),
+		  variable_(this->in_variable_) {}
 	//=================================================================================================//
-	template <typename VariableType>
+	template <typename VariableType, class CoefficientType>
 	ErrorAndParameters<VariableType>
-	DampingBySplittingInner<VariableType>::computeErrorAndParameters(size_t index_i, Real dt)
+	BaseDampingSplittingInner<VariableType, CoefficientType>::computeErrorAndParameters(size_t index_i, Real dt)
 	{
 		Real Vol_i = Vol_[index_i];
 		Real mass_i = mass_[index_i];
 		VariableType &variable_i = variable_[index_i];
 		ErrorAndParameters<VariableType> error_and_parameters;
-		Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+		Neighborhood &inner_neighborhood = this->inner_configuration_[index_i];
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
 			size_t index_j = inner_neighborhood.j_[n];
 			// linear projection
 			VariableType variable_derivative = (variable_i - variable_[index_j]);
-			Real parameter_b = 2.0 * eta_ * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+			Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
+							   inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
 
 			error_and_parameters.error_ -= variable_derivative * parameter_b;
 			error_and_parameters.a_ += parameter_b;
@@ -39,22 +41,23 @@ namespace SPH
 		return error_and_parameters;
 	}
 	//=================================================================================================//
-	template <typename VariableType>
-	void DampingBySplittingInner<VariableType>::
+	template <typename VariableType, class CoefficientType>
+	void BaseDampingSplittingInner<VariableType, CoefficientType>::
 		updateStates(size_t index_i, Real dt, const ErrorAndParameters<VariableType> &error_and_parameters)
 	{
 		Real parameter_l = error_and_parameters.a_ * error_and_parameters.a_ + error_and_parameters.c_;
 		VariableType parameter_k = error_and_parameters.error_ / (parameter_l + TinyReal);
-		variable_[index_i] += parameter_k * error_and_parameters.a_;
+		this->variable_[index_i] += parameter_k * error_and_parameters.a_;
 
 		Real Vol_i = Vol_[index_i];
 		VariableType &variable_i = variable_[index_i];
-		Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+		Neighborhood &inner_neighborhood = this->inner_configuration_[index_i];
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
 			size_t index_j = inner_neighborhood.j_[n];
 
-			Real parameter_b = 2.0 * eta_ * inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
+			Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
+							   inner_neighborhood.dW_ijV_j_[n] * Vol_i * dt / inner_neighborhood.r_ij_[n];
 
 			// predicted quantity at particle j
 			VariableType variable_j = variable_[index_j] - parameter_k * parameter_b;
@@ -65,100 +68,20 @@ namespace SPH
 		}
 	}
 	//=================================================================================================//
-	template <typename VariableType>
-	void DampingBySplittingInner<VariableType>::interaction(size_t index_i, Real dt)
+	template <typename VariableType, class CoefficientType>
+	void BaseDampingSplittingInner<VariableType, CoefficientType>::interaction(size_t index_i, Real dt)
 	{
 		ErrorAndParameters<VariableType> error_and_parameters = computeErrorAndParameters(index_i, dt);
 		updateStates(index_i, dt, error_and_parameters);
 	}
 	//=================================================================================================//
-	template <typename VariableType>
-	DampingBySplittingComplex<VariableType>::
-		DampingBySplittingComplex(ComplexRelation &complex_relation,
-								  const std::string &variable_name, Real eta)
-		: DampingBySplittingInner<VariableType>(complex_relation.getInnerRelation(), variable_name, eta),
-		  DissipationDataContact(complex_relation.getContactRelation())
-	{
-		for (size_t k = 0; k != contact_particles_.size(); ++k)
-		{
-			contact_Vol_.push_back(&(contact_particles_[k]->Vol_));
-			contact_mass_.push_back(&(contact_particles_[k]->mass_));
-			contact_variable_.push_back(contact_particles_[k]->template getVariableByName<VariableType>(variable_name));
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	ErrorAndParameters<VariableType>
-	DampingBySplittingComplex<VariableType>::computeErrorAndParameters(size_t index_i, Real dt)
-	{
-		ErrorAndParameters<VariableType> error_and_parameters =
-			DampingBySplittingInner<VariableType>::computeErrorAndParameters(index_i, dt);
-
-		VariableType &variable_i = this->variable_[index_i];
-		Real Vol_i = this->Vol_[index_i];
-		/** Contact interaction. */
-		for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
-		{
-			StdLargeVec<Real> &Vol_k = *(this->contact_Vol_[k]);
-			StdLargeVec<Real> &mass_k = *(this->contact_mass_[k]);
-			StdLargeVec<VariableType> &variable_k = *(this->contact_variable_[k]);
-			Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
-			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
-			{
-				size_t index_j = contact_neighborhood.j_[n];
-
-				// linear projection
-				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = 2.0 * this->eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
-
-				error_and_parameters.error_ -= variable_derivative * parameter_b;
-				error_and_parameters.a_ += parameter_b;
-				error_and_parameters.c_ += parameter_b * parameter_b;
-			}
-			return error_and_parameters;
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType>
-	void DampingBySplittingComplex<VariableType>::
-		updateStates(size_t index_i, Real dt, const ErrorAndParameters<VariableType> &error_and_parameters)
-	{
-		DampingBySplittingInner<VariableType>::updateStates(index_i, dt, error_and_parameters);
-
-		Real parameter_l = error_and_parameters.a_ * error_and_parameters.a_ + error_and_parameters.c_;
-		VariableType parameter_k = error_and_parameters.error_ / (parameter_l + TinyReal);
-		VariableType &variable_i = this->variable_[index_i];
-		Real Vol_i = this->Vol_[index_i];
-		/** Contact interaction. */
-		for (size_t k = 0; k < this->contact_configuration_.size(); ++k)
-		{
-			StdLargeVec<Real> &Vol_k = *(this->contact_Vol_[k]);
-			StdLargeVec<Real> &mass_k = *(this->contact_mass_[k]);
-			StdLargeVec<VariableType> &variable_k = *(this->contact_variable_[k]);
-			Neighborhood &contact_neighborhood = (*this->contact_configuration_[k])[index_i];
-			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
-			{
-				size_t index_j = contact_neighborhood.j_[n];
-
-				// linear projection
-				Real parameter_b = 2.0 * this->eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
-
-				// predicted quantity at particle j
-				VariableType variable_j = this->variable_k[index_j] - parameter_k * parameter_b;
-				VariableType variable_derivative = (variable_i - variable_j);
-
-				// exchange in conservation form
-				this->variable_k[index_j] -= variable_derivative * parameter_b / mass_k[index_j];
-			}
-		}
-	}
-	//=================================================================================================//
-	template <typename VariableType,
-			  template <typename BaseVariableType> class BaseDampingBySplittingType>
-	DampingBySplittingWithWall<VariableType, BaseDampingBySplittingType>::
-		DampingBySplittingWithWall(ComplexRelation &complex_wall_relation,
-								   const std::string &variable_name, Real eta)
-		: BaseDampingBySplittingType<VariableType>(complex_wall_relation.getInnerRelation(), variable_name, eta),
+	template <typename VariableType, class CoefficientType>
+	template <typename CoefficientArg>
+	BaseDampingSplittingWithWall<VariableType, CoefficientType>::
+		BaseDampingSplittingWithWall(ComplexRelation &complex_wall_relation,
+									 const std::string &variable_name, const CoefficientArg &eta)
+		: BaseDampingSplittingInner<VariableType, CoefficientType>(
+			  complex_wall_relation.getInnerRelation(), variable_name, eta),
 		  DissipationDataWithWall(complex_wall_relation.getContactRelation())
 	{
 		for (size_t k = 0; k != DissipationDataWithWall::contact_particles_.size(); ++k)
@@ -168,14 +91,13 @@ namespace SPH
 		}
 	}
 	//=================================================================================================//
-	template <typename VariableType,
-			  template <typename BaseVariableType> class BaseDampingBySplittingType>
+	template <typename VariableType, class CoefficientType>
 	ErrorAndParameters<VariableType>
-	DampingBySplittingWithWall<VariableType, BaseDampingBySplittingType>::
+	BaseDampingSplittingWithWall<VariableType, CoefficientType>::
 		computeErrorAndParameters(size_t index_i, Real dt)
 	{
 		ErrorAndParameters<VariableType> error_and_parameters =
-			BaseDampingBySplittingType<VariableType>::computeErrorAndParameters(index_i, dt);
+			BaseDampingSplittingWithWall<VariableType, CoefficientType>::computeErrorAndParameters(index_i, dt);
 
 		const VariableType &variable_i = this->variable_[index_i];
 		Real Vol_i = this->Vol_[index_i];
@@ -190,7 +112,8 @@ namespace SPH
 
 				// linear projection
 				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = 2.0 * this->eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
+				Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
+								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
 
 				error_and_parameters.error_ -= variable_derivative * parameter_b;
 				error_and_parameters.a_ += parameter_b;

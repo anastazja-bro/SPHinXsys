@@ -320,8 +320,8 @@ int main()
 	diffusion_body.addBodyState<Real>(body_temperature, variable_name);
 	diffusion_body.addBodyStateForRecording<Real>(variable_name);
 	diffusion_body.addBodyStateToRestart<Real>(variable_name);
-	StdLargeVec<Real> diffusion_coeffcient;
-	diffusion_body.addBodyState<Real>(diffusion_coeffcient, coefficient_name);
+	StdLargeVec<Real> diffusion_coefficient;
+	diffusion_body.addBodyState<Real>(diffusion_coefficient, coefficient_name);
 	diffusion_body.addBodyStateForRecording<Real>(coefficient_name);
 	diffusion_body.addBodyStateToRestart<Real>(coefficient_name);
 	StdLargeVec<Real> laplacian_residue;
@@ -364,8 +364,8 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<ThermalSplittingWithWall>
-		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name, 0.0);
+	InteractionSplit<DampingSplittingWithWallCoefficientByParticle<Real>>
+		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
 	InteractionWithUpdate<CoefficientEvolutionWithWallExplicit>
 		coefficient_evolution_with_wall(diffusion_body_complex, variable_name, coefficient_name, 0.0);
 	SimpleDynamics<ReferenceDiffusionCoefficient> update_refence_coefficient(diffusion_body, "ReferenceDiffusionCoefficient");

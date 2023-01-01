@@ -22,7 +22,7 @@
  * -----------------------------------------------------------------------------*/
 /**
  * @file 	general_operators.h
- * @brief 	This is the particle dynamics applicable for all type bodies
+ * @brief 	Generalization of the operators acting on discrete variables.
  * @author	Xiangyu Hu
  */
 
@@ -75,21 +75,21 @@ namespace SPH
     };
 
     /**
-     * @class OperatorInner
-     * @brief Base class for spatial operators with inner relation
+     * @class BaseOperator
+     * @brief Base class for spatial operators
      */
-    template <typename InDataType, typename OutDataType, class CoefficientType>
-    class OperatorInner : public LocalDynamics, public GeneralDataDelegateInner
+    template <typename DataDelegationType, typename InDataType, typename OutDataType, class CoefficientType>
+    class BaseOperator : public LocalDynamics, public DataDelegationType
     {
     public:
-        template <typename Arg>
-        OperatorInner(BaseInnerRelation &inner_relation,
-                      const std::string &in_name, const std::string &out_name, const Arg &eta)
-            : LocalDynamics(inner_relation.sph_body_), GeneralDataDelegateInner(inner_relation),
-              in_variable_(*particles_->template getVariableByName<InDataType>(in_name)),
-              out_variable_(*particles_->template getVariableByName<OutDataType>(out_name)),
-              coefficient_(particles_, eta){};
-        virtual ~OperatorInner(){};
+        template <typename BodyRelationType, typename CoefficientArg>
+        BaseOperator(BodyRelationType &body_relation,
+                     const std::string &in_name, const std::string &out_name, const CoefficientArg &eta)
+            : LocalDynamics(body_relation.sph_body_), DataDelegationType(body_relation),
+              in_variable_(*this->particles_->template getVariableByName<InDataType>(in_name)),
+              out_variable_(*this->particles_->template getVariableByName<OutDataType>(out_name)),
+              coefficient_(this->particles_, eta){};
+        virtual ~BaseOperator(){};
         StdLargeVec<InDataType> &InVariable() { return in_variable_; }
         StdLargeVec<OutDataType> &OutVariable() { return out_variable_; }
 
@@ -100,33 +100,46 @@ namespace SPH
     };
 
     /**
+     * @class OperatorInner
+     * @brief Base class for spatial operators with inner relation
+     */
+    template <typename... DataTypes>
+    class OperatorInner : public BaseOperator<GeneralDataDelegateInner, DataTypes...>
+    {
+    public:
+        template <typename... Args>
+        OperatorInner(BaseInnerRelation &inner_relation, Args &&...args)
+            : BaseOperator<GeneralDataDelegateInner, DataTypes...>(
+                  inner_relation, std::forward<Args>(args)...){};
+        virtual ~OperatorInner(){};
+    };
+
+    /**
      * @class OperatorContact
      * @brief Base class for spatial operators with contact relation
      */
     template <typename InDataType, typename OutDataType, class CoefficientType>
-    class OperatorContact : public LocalDynamics, public DataDelegateContact<BaseParticles, BaseParticles>
+    class OperatorContact : public BaseOperator<GeneralDataDelegateContact, InDataType, OutDataType, CoefficientType>
     {
     public:
-        template <typename Arg, typename ContactArg>
+        template <typename CoefficientArg, typename ContactCoefficientArg>
         OperatorContact(BaseContactRelation &contact_relation,
                         const std::string &in_name, const std::string &out_name,
-                        const Arg &eta, const ContactArg &contact_eta)
-            : LocalDynamics(contact_relation.sph_body_),
-              DataDelegateContact<BaseParticles, BaseParticles>(contact_relation),
-              in_variable_(*particles_->template getVariableByName<InDataType>(in_name)),
-              out_variable_(*particles_->template getVariableByName<OutDataType>(out_name))
+                        const CoefficientArg &eta, const ContactCoefficientArg &contact_eta)
+            : BaseOperator<GeneralDataDelegateContact, InDataType, OutDataType, CoefficientType>(
+                  contact_relation, in_name, out_name, eta, contact_eta)
         {
-            for (size_t k = 0; k != contact_particles_.size(); ++k)
+            auto particles = this->particles_;
+            auto contact_particles = this->contact_particles_;
+            for (size_t k = 0; k != contact_particles.size(); ++k)
             {
-                contact_in_variable_.push_back(contact_particles_[k]->template getVariableByName<InDataType>(in_name));
-                contact_coefficient_.push_back(particles_, contact_particles_[k], eta, contact_eta);
+                contact_in_variable_.push_back(contact_particles[k]->template getVariableByName<InDataType>(in_name));
+                contact_coefficient_.push_back(particles, contact_particles, eta, contact_eta);
             }
         }
         virtual ~OperatorContact(){};
 
     protected:
-        StdLargeVec<InDataType> &in_variable_;
-        StdLargeVec<OutDataType> &out_variable_;
         StdVec<StdLargeVec<InDataType> *> contact_in_variable_;
         StdVec<CoefficientType> &contact_coefficient_;
     };
@@ -135,31 +148,25 @@ namespace SPH
      * @class OperatorFromBoundary
      * @brief Base class for spatial operators with contact relation
      */
-    template <typename InDataType, typename OutDataType, class CoefficientType>
-    class OperatorFromBoundary : public LocalDynamics, public DataDelegateContact<BaseParticles, BaseParticles>
+    template <typename InDataType, typename... OtherDataTypes>
+    class OperatorFromBoundary : public BaseOperator<GeneralDataDelegateContact, InDataType, OtherDataTypes...>
     {
     public:
-        template <typename Arg>
-        OperatorFromBoundary(BaseContactRelation &contact_relation,
-                             const std::string &in_name, const std::string &out_name, const Arg &eta)
-            : LocalDynamics(contact_relation.sph_body_),
-              DataDelegateContact<BaseParticles, BaseParticles>(contact_relation),
-              in_variable_(*particles_->template getVariableByName<InDataType>(in_name)),
-              out_variable_(*particles_->template getVariableByName<OutDataType>(out_name)),
-              coefficient_(particles_, eta)
+        template <typename... Args>
+        OperatorFromBoundary(BaseContactRelation &contact_relation, const std::string &in_name, Args &&...args)
+            : BaseOperator<GeneralDataDelegateContact, InDataType, OtherDataTypes...>(
+                  contact_relation, in_name, std::forward<Args>(args)...)
         {
-            for (size_t k = 0; k != contact_particles_.size(); ++k)
+            auto contact_particles = this->contact_particles_;
+            for (size_t k = 0; k != contact_particles.size(); ++k)
             {
-                contact_in_variable_.push_back(contact_particles_[k]->template getVariableByName<InDataType>(in_name));
+                contact_in_variable_.push_back(contact_particles[k]->template getVariableByName<InDataType>(in_name));
             }
         }
         virtual ~OperatorFromBoundary(){};
 
     protected:
-        StdLargeVec<InDataType> &in_variable_;
-        StdLargeVec<OutDataType> &out_variable_;
         StdVec<StdLargeVec<InDataType> *> contact_in_variable_;
-        CoefficientType coefficient_;
     };
 
     /**
@@ -170,28 +177,25 @@ namespace SPH
     class OperatorWithBoundary : public LocalDynamics
     {
     public:
-        template <class BodyRelationType, typename Arg, typename... ContactArg>
+        template <class BodyRelationType, typename CoefficientArg, typename... ContactCoefficientArg>
         OperatorWithBoundary(BodyRelationType &body_relation, BaseContactRelation &relation_to_boundary,
                              const std::string &in_name, const std::string &out_name,
-                             const Arg &eta, ContactArg &&...contact_eta)
+                             const CoefficientArg &eta, ContactCoefficientArg &&...contact_eta)
             : LocalDynamics(body_relation.sph_body_),
               base_operator_(body_relation, in_name, out_name, eta,
-                             std::forward<ContactArg>(contact_eta)...),
+                             std::forward<ContactCoefficientArg>(contact_eta)...),
               operator_from_boundary_(relation_to_boundary, in_name, out_name, eta){};
-        template <typename Arg, typename... ContactArg>
-        OperatorWithBoundary(ComplexRelation &complex_relation,
-                             const std::string &in_name, const std::string &out_name,
-                             const Arg &eta, ContactArg &&...contact_eta)
+        template <typename... Args>
+        OperatorWithBoundary(ComplexRelation &complex_relation, Args &&...args)
             : OperatorWithBoundary(complex_relation.getInnerRelation(),
                                    complex_relation.getContactRelation(),
-                                   in_name, out_name, eta,
-                                   std::forward<ContactArg>(contact_eta)...){};
+                                   std::forward<Args>(args)...){};
         virtual ~OperatorWithBoundary(){};
 
         void interaction(size_t index_i, Real dt)
         {
-            this->base_operator_.interaction(index_i, dt);
-            this->operator_from_boundary_.interaction(index_i, dt);
+            base_operator_.interaction(index_i, dt);
+            operator_from_boundary_.interaction(index_i, dt);
         };
 
     protected:
