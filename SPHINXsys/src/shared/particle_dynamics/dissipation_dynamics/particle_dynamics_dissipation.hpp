@@ -110,7 +110,7 @@ namespace SPH
 
 				// linear projection
 				VariableType variable_derivative = (variable_i - variable_k[index_j]);
-				Real parameter_b = 2.0 * this->coefficient_(index_i, index_i) *
+				Real parameter_b = 2.0 * this->coefficient_(index_i) *
 								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
 
 				error_and_parameters.error_ -= variable_derivative * parameter_b;
@@ -196,7 +196,7 @@ namespace SPH
 			for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
 			{
 				size_t index_j = contact_neighborhood.j_[n];
-				Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
+				Real parameter_b = 2.0 * this->coefficient_(index_i) *
 								   contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt2 / contact_neighborhood.r_ij_[n];
 
 				// only update particle i
@@ -207,7 +207,7 @@ namespace SPH
 			for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
 			{
 				size_t index_j = contact_neighborhood.j_[n - 1];
-				Real parameter_b = 2.0 * this->coefficient_(index_i, index_j) *
+				Real parameter_b = 2.0 * this->coefficient_(index_i) *
 								   contact_neighborhood.dW_ijV_j_[n - 1] * Vol_i * dt2 / contact_neighborhood.r_ij_[n - 1];
 
 				// only update particle i

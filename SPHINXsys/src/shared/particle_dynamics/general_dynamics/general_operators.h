@@ -46,10 +46,17 @@ namespace SPH
         template <class ParticlesType>
         ConstantCoefficient(ParticlesType *particles, const DataType &eta, const DataType &contact_eta)
             : eta_i_(eta), eta_j_(contact_eta){};
+
         inline DataType operator()(size_t index_i, size_t index_j)
         {
             return 0.5 * (eta_i_ + eta_j_);
         };
+
+        inline DataType operator()(size_t index_i)
+        {
+            return eta_i_;
+        };
+
     };
 
     template <typename DataType>
@@ -68,9 +75,15 @@ namespace SPH
                               ContactParticleType *contact_particles, const std::string name)
             : eta_i_(*inner_particles->template getVariableByName<DataType>(name)),
               eta_j_(*contact_particles->template getVariableByName<DataType>(name)){};
+
         inline DataType operator()(size_t index_i, size_t index_j)
         {
             return 0.5 * (eta_i_[index_i] + eta_j_[index_j]);
+        }
+
+        inline DataType operator()(size_t index_i)
+        {
+            return eta_i_[index_i];
         }
     };
 

@@ -127,7 +127,7 @@ namespace SPH
                 for (size_t n = 0; n != neighborhood.current_size_; ++n)
                 {
                     size_t index_j = neighborhood.j_[n];
-                    sum += 2.0 * this->coefficient_(index_i, index_i) *
+                    sum += 2.0 * this->coefficient_(index_i) *
                            (this->in_variable_[index_i] - in_variable_k[index_j]) *
                            neighborhood.dW_ijV_j_[n] / neighborhood.r_ij_[n];
                 }

@@ -247,26 +247,6 @@ namespace SPH
 	};
 
 	/**
-	 * @class DampingCoefficient
-	 * @brief Only works for scalar variable and coefficient.
-	 * TODO: to be generalized for different data type
-	 */
-	class DampingCoefficient : public LocalDynamics, public DissipationDataInner
-	{
-	public:
-		DampingCoefficient(BaseInnerRelation &inner_relation,
-						   const std::string &variable_name, const std::string &eta, Real strength);
-		virtual ~DampingCoefficient(){};
-		void interaction(size_t index_i, Real dt);
-
-	protected:
-		StdLargeVec<Real> &Vol_, &mass_;
-		StdLargeVec<Real> &variable_;
-		StdLargeVec<Real> &eta_; /**< variable damping coefficient */
-		Real strength_;
-	};
-
-	/**
 	 * @class BaseDampingPairwiseFromWall
 	 * @brief Damping to wall by which the wall velocity is not updated
 	 * and the mass of wall particle is not considered.
