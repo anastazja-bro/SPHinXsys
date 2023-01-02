@@ -183,47 +183,6 @@ namespace SPH
 	};
 
 	/**
-	 * @class CoefficientEvolutionExplicit
-	 * @brief Only works for scalar variable and coefficient.
-	 * TODO: to be generalized for different data type
-	 */
-	class CoefficientEvolutionExplicit : public LocalDynamics, public DissipationDataInner
-	{
-	public:
-		CoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
-									 const std::string &variable_name, const std::string &eta);
-		virtual ~CoefficientEvolutionExplicit(){};
-		void interaction(size_t index_i, Real dt);
-		void update(size_t index_i, Real dt);
-		void setSource(Real source) { source_ = source; };
-
-	protected:
-		StdLargeVec<Real> &rho_;
-		StdLargeVec<Real> change_rate_;
-		StdLargeVec<Real> &variable_;
-		StdLargeVec<Real> &eta_, eta_ref_; /**< variable damping coefficient */
-		Real source_;
-	};
-
-	/**
-	 * @class CoefficientEvolutionFromWallExplicit
-	 * @brief Only works for scalar variable and coefficient.
-	 * TODO: to be generalized for different data type
-	 */
-	class CoefficientEvolutionWithWallExplicit : public CoefficientEvolutionExplicit,
-												 public DissipationDataWithWall
-	{
-	public:
-		CoefficientEvolutionWithWallExplicit(ComplexRelation &complex_relation,
-											 const std::string &variable_name, const std::string &eta);
-		virtual ~CoefficientEvolutionWithWallExplicit(){};
-		void interaction(size_t index_i, Real dt);
-
-	protected:
-		StdVec<StdLargeVec<Real> *> wall_variable_;
-	};
-
-	/**
 	 * @class CoefficientEvolutionFromWall
 	 * @brief Only works for scalar variable and coefficient.
 	 * TODO: to be generalized for different data type
