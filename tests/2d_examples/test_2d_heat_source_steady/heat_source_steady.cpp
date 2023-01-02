@@ -155,10 +155,9 @@ class ThermalSplittingInner : public LocalDynamics, public DissipationDataInner
 {
 public:
 	ThermalSplittingInner(BaseInnerRelation& inner_relation,
-		const std::string& variable_name,
-		const std::string& coefficient_name, Real source)
+		const std::string& variable_name, const std::string& coefficient_name)
 		: LocalDynamics(inner_relation.sph_body_), DissipationDataInner(inner_relation),
-		Vol_(particles_->Vol_), mass_(particles_->mass_), source_(source),
+		Vol_(particles_->Vol_), mass_(particles_->mass_),
 		variable_(*particles_->getVariableByName<Real>(variable_name)),
 		eta_(*particles_->getVariableByName<Real>(coefficient_name)) {};
 	virtual ~ThermalSplittingInner() {};
@@ -170,7 +169,6 @@ public:
 
 protected:
 	StdLargeVec<Real>& Vol_, & mass_;
-	Real source_;
 	StdLargeVec<Real>& variable_;
 	StdLargeVec<Real>& eta_;
 
@@ -182,7 +180,6 @@ protected:
 		Real eta_i = eta_[index_i];
 
 		ErrorAndParameters<Real> error_and_parameters;
-		error_and_parameters.a_ = - source_ * dt;
 		const Neighborhood& inner_neighborhood = inner_configuration_[index_i];
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
 		{
@@ -203,12 +200,11 @@ protected:
 	{
 		Real Vol_i = Vol_[index_i];
 		Real mass_i = mass_[index_i];
-		Real variable_i = variable_[index_i];
 		Real eta_i = eta_[index_i];
 
 		Real parameter_l = error_and_parameters.a_ * error_and_parameters.a_ + error_and_parameters.c_;
 		Real parameter_k = error_and_parameters.error_ / (parameter_l + TinyReal);
-		variable_i += parameter_k * error_and_parameters.a_;
+		variable_[index_i] += parameter_k * error_and_parameters.a_;
 
 		Neighborhood& inner_neighborhood = inner_configuration_[index_i];
 		for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
@@ -219,7 +215,7 @@ protected:
 
 			// predicted quantity at particle j
 			Real variable_j = variable_[index_j] - parameter_k * parameter_b * coefficient_ave;
-			Real variable_derivative = (variable_i - variable_j);
+			Real variable_derivative = (variable_[index_i] - variable_j);
 
 			// exchange in conservation form
 			variable_[index_j] -= variable_derivative * parameter_b * coefficient_ave / mass_[index_j];
@@ -232,9 +228,8 @@ class ThermalSplittingWithWall : public ThermalSplittingInner, public Dissipatio
 public:
 	ThermalSplittingWithWall(ComplexRelation& complex_wall_relation,
 		const std::string& variable_name,
-		const std::string& coefficient_name,
-		Real source)
-		: ThermalSplittingInner(complex_wall_relation.getInnerRelation(), variable_name, coefficient_name, source),
+		const std::string& coefficient_name)
+		: ThermalSplittingInner(complex_wall_relation.getInnerRelation(), variable_name, coefficient_name),
 		DissipationDataWithWall(complex_wall_relation.getContactRelation())
 	{
 		for (size_t k = 0; k != contact_particles_.size(); ++k)
@@ -364,8 +359,10 @@ int main()
 	/************************************************************************/
 	/*            splitting thermal diffusivity optimization                */
 	/************************************************************************/
-	InteractionSplit<ThermalSplittingWithWall>
-		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name, 0.0);
+//	InteractionSplit<ThermalSplittingWithWall>
+//		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
+	InteractionSplit<DampingSplittingWithWallCoefficientByParticle<Real>>
+		implicit_heat_transfer_solver(diffusion_body_complex, variable_name, coefficient_name);
 	InteractionWithUpdate<CoefficientEvolutionWithWallExplicit>
 		coefficient_evolution_with_wall(diffusion_body_complex, variable_name, coefficient_name, 0.0);
 	SimpleDynamics<ReferenceDiffusionCoefficient> update_reference_coefficient(diffusion_body, "ReferenceDiffusionCoefficient");
@@ -400,6 +397,7 @@ int main()
 	Real dt_coeff = SMIN(dt, 0.25 * resolution_ref * resolution_ref / reference_temperature);
 	Real learning_strength = learning_strength_ref;
 	int hit = 0;
+	int k_ite = 10;
 
 	/** Output global basic parameters.*/
 	write_states.writeToFile(ite);
@@ -409,13 +407,12 @@ int main()
 	while (GlobalStaticVariables::physical_time_ < End_Time)
 	{
 		Real relaxation_time = 0.0;
+		Real equation_residue_max = Infinity;
 		while (relaxation_time < Observe_time)
 		{
-			thermal_equation_residue.parallel_exec();
-			Real equation_residue_max = maximum_equation_residue.parallel_exec();
 			Real equation_residue_max_before = 2.0 * equation_residue_max;
 			int iter_solution_step = 0;
-			while (equation_residue_max_before > equation_residue_max)
+//			while (equation_residue_max_before > equation_residue_max)
 			{
 				thermal_source.parallel_exec(dt);
 				implicit_heat_transfer_solver.parallel_exec(dt);
@@ -430,29 +427,24 @@ int main()
 			}
 
 			update_reference_coefficient.parallel_exec();
-			for (size_t k = 0; k != 10; ++k)
+			for (size_t k = 0; k != k_ite; ++k)
 			{
 				target_source.parallel_exec(dt_coeff);
 				coefficient_evolution_with_wall.parallel_exec(dt_coeff);
+				constrain_total_coefficient.parallel_exec();
 			}
-			constrain_total_coefficient.parallel_exec();
 			thermal_equation_residue.parallel_exec();
 			Real equation_residue_max_after = maximum_equation_residue.parallel_exec();
-			if (equation_residue_max_after > equation_residue_max)
+			if (equation_residue_max_after > equation_residue_max && equation_residue_max_after > 2.0e5)
 			{
-				learning_strength *= 0.9;
-				target_source.setSourceStrength(learning_strength * target_strength);
-				hit = 0;
+				k_ite = 0;
 			}
 			else
 			{
-				hit++;
+				k_ite = 10;
+				equation_residue_max = equation_residue_max_after;
 			}
-			if (hit == 10)
-			{
-				learning_strength += 0.01 * learning_strength_ref;
-				hit = 0;
-			}
+
 			ite++;
 			relaxation_time += dt;
 			GlobalStaticVariables::physical_time_ += dt;

@@ -47,8 +47,7 @@ namespace SPH
 	{
 		Real parameter_l = error_and_parameters.a_ * error_and_parameters.a_ + error_and_parameters.c_;
 		VariableType parameter_k = error_and_parameters.error_ / (parameter_l + TinyReal);
-		VariableType &variable_i = variable_[index_i];
-		variable_i += parameter_k * error_and_parameters.a_;
+		variable_[index_i] += parameter_k * error_and_parameters.a_;
 
 		Real Vol_i = Vol_[index_i];
 		Neighborhood &inner_neighborhood = this->inner_configuration_[index_i];
@@ -61,7 +60,7 @@ namespace SPH
 
 			// predicted quantity at particle j
 			VariableType variable_j = variable_[index_j] - parameter_k * parameter_b;
-			VariableType variable_derivative = (variable_i - variable_j);
+			VariableType variable_derivative = (variable_[index_i] - variable_j);
 
 			// exchange in conservation form
 			variable_[index_j] -= variable_derivative * parameter_b / mass_[index_j];

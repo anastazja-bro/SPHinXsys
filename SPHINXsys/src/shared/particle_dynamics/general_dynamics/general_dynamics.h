@@ -396,7 +396,7 @@ namespace SPH
 	{
 	protected:
 		DataType steady_reference_;
-		const Real criterion_ = 1.0e-6;
+		const Real criterion_ = 1.0e-8;
 
 		StdLargeVec<DataType> &variable_, variable_temp_;
 
@@ -419,7 +419,7 @@ namespace SPH
 		{
 			particles_->registerVariable(variable_temp_, "Temporary" + variable_name,
 										 [&](size_t index_i)
-										 { return variable_[index_i]; });
+										 { return 2.0 * variable_[index_i]; });
 		};
 		virtual ~SteadySolutionCheck(){};
 
