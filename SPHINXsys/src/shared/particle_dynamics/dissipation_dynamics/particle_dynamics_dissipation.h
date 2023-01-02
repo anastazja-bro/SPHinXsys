@@ -191,7 +191,7 @@ namespace SPH
 	{
 	public:
 		CoefficientEvolutionExplicit(BaseInnerRelation &inner_relation,
-									 const std::string &variable_name, const std::string &eta, Real source);
+									 const std::string &variable_name, const std::string &eta);
 		virtual ~CoefficientEvolutionExplicit(){};
 		void interaction(size_t index_i, Real dt);
 		void update(size_t index_i, Real dt);
@@ -215,7 +215,7 @@ namespace SPH
 	{
 	public:
 		CoefficientEvolutionWithWallExplicit(ComplexRelation &complex_relation,
-											 const std::string &variable_name, const std::string &eta, Real source);
+											 const std::string &variable_name, const std::string &eta);
 		virtual ~CoefficientEvolutionWithWallExplicit(){};
 		void interaction(size_t index_i, Real dt);
 
