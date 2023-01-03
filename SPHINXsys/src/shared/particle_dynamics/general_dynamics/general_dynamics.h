@@ -46,7 +46,9 @@ namespace SPH
 
 	/**
 	 * @class ValueAssignment
-	 * @brief set initial condition for a discrete variable
+	 * @brief set value for a discrete variable
+	 * @details Note that this class only prepares the data, 
+	 * concrete realization wll be defined in application.  
 	 */
 	template <typename DataType>
 	class ValueAssignment : public LocalDynamics, public GeneralDataDelegateSimple

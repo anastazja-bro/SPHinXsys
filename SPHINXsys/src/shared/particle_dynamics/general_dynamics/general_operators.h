@@ -36,8 +36,8 @@ namespace SPH
     template <typename DataType>
     class ConstantCoefficient
     {
-        const DataType eta_i_;
-        const DataType eta_j_;
+        DataType eta_i_;
+        DataType eta_j_;
 
     public:
         template <class ParticlesType>
@@ -46,6 +46,12 @@ namespace SPH
         template <class ParticlesType>
         ConstantCoefficient(ParticlesType *particles, const DataType &eta, const DataType &contact_eta)
             : eta_i_(eta), eta_j_(contact_eta){};
+
+        void rescaleCoefficient(Real scaling_factor)
+        {
+            eta_i_ *= scaling_factor;
+            eta_j_ *= scaling_factor;
+        }
 
         inline DataType operator()(size_t index_i, size_t index_j)
         {
@@ -56,7 +62,6 @@ namespace SPH
         {
             return eta_i_;
         };
-
     };
 
     template <typename DataType>
@@ -105,6 +110,7 @@ namespace SPH
         virtual ~BaseOperator(){};
         StdLargeVec<InDataType> &InVariable() { return in_variable_; }
         StdLargeVec<OutDataType> &OutVariable() { return out_variable_; }
+        CoefficientType &Coefficient() { return coefficient_; };
 
     protected:
         StdLargeVec<InDataType> &in_variable_;

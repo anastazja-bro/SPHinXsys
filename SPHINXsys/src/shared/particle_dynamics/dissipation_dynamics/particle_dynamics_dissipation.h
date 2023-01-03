@@ -171,14 +171,13 @@ namespace SPH
 	 * @brief Damping with wall with the priority for update operator to wall first.
 	 */
 	template <class BaseDampingType, class DampingFromWallType>
-	class DampingPairwiseWithWall : public LocalDynamics
+	class DampingPairwiseWithWall : public BaseDampingType
 	{
 	public:
 		template <class BodyRelationType, typename... Args>
 		DampingPairwiseWithWall(BodyRelationType &body_relation,
 						BaseContactRelation &relation_to_boundary, Args &&...args)
-			: LocalDynamics(body_relation.sph_body_),
-			  base_operator_(body_relation, std::forward<Args>(args)...),
+			: BaseDampingType(body_relation, std::forward<Args>(args)...),
 			  damping_from_wall_(relation_to_boundary, std::forward<Args>(args)...){};
 		template <typename... Args>
 		DampingPairwiseWithWall(ComplexRelation &complex_relation, Args &&...args)
@@ -189,11 +188,10 @@ namespace SPH
 		void interaction(size_t index_i, Real dt)
 		{
 			damping_from_wall_.interaction(index_i, dt);
-			base_operator_.interaction(index_i, dt);
+			BaseDampingType::interaction(index_i, dt);
 		};
 
 	protected:
-		BaseDampingType base_operator_;
 		DampingFromWallType damping_from_wall_;
 	};
 
@@ -203,6 +201,7 @@ namespace SPH
 	 * Note that, if periodic boundary condition is applied,
 	 * the parallelized version of the method requires the one using ghost particles
 	 * because the splitting partition only works in this case.
+	 * Note that this is only works with const coefficient.
 	 */
 	template <class DampingAlgorithmType>
 	class DampingWithRandomChoice : public DampingAlgorithmType

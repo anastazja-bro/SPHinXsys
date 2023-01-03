@@ -291,9 +291,9 @@ int main()
 	//----------------------------------------------------------------------
 	//	Creating body, materials and particles.
 	//----------------------------------------------------------------------
-	SolidBody diffusion_body(sph_system,
-							 makeShared<TransformShape<GeometricShapeBox>>(
-								 Transform2d(block_translation), block_halfsize, "DiffusionBody"));
+	SolidBody diffusion_body(
+		sph_system, makeShared<TransformShape<GeometricShapeBox>>(
+						Transform2d(block_translation), block_halfsize, "DiffusionBody"));
 	diffusion_body.defineParticlesAndMaterial<SolidParticles, Solid>();
 	diffusion_body.generateParticles<ParticleGeneratorLattice>();
 	//----------------------------------------------------------------------
@@ -314,6 +314,9 @@ int main()
 	SolidBody isothermal_boundaries(sph_system, makeShared<IsothermalBoundaries>("IsothermalBoundaries"));
 	isothermal_boundaries.defineParticlesAndMaterial<SolidParticles, Solid>();
 	isothermal_boundaries.generateParticles<ParticleGeneratorLattice>();
+	//----------------------------------------------------------------------
+	//	add extra discrete variables (not defined in the library)
+	//----------------------------------------------------------------------
 	StdLargeVec<Real> constrained_temperature;
 	isothermal_boundaries.addBodyState<Real>(constrained_temperature, variable_name);
 	isothermal_boundaries.addBodyStateForRecording<Real>(variable_name);

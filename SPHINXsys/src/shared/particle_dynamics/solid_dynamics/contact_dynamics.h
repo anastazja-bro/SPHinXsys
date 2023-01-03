@@ -31,6 +31,7 @@
 #define CONTACT_DYNAMICS_H
 
 #include "general_solid_dynamics.h"
+#include "general_operators.h"
 
 namespace SPH
 {
@@ -194,10 +195,11 @@ namespace SPH
 		public:
 			PairwiseFrictionFromWall(BaseContactRelation &contact_relation, Real eta);
 			virtual ~PairwiseFrictionFromWall(){};
+			ConstantCoefficient<Real> &Coefficient(){return eta_;} 
 			void interaction(size_t index_i, Real dt = 0.0);
 
 		protected:
-			Real eta_; /**< friction coefficient */
+			ConstantCoefficient<Real> eta_;
 			StdLargeVec<Real> &Vol_, &mass_;
 			StdLargeVec<Vecd> &vel_;
 			StdVec<StdLargeVec<Vecd> *> wall_vel_n_, wall_n_;

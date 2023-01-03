@@ -50,8 +50,6 @@ namespace SPH {
 	template<class DataType>
 	using MeshDataMatrix = DataType**;
 
-	/** only works for smoothing length ratio less or equal than 1.3*/
-	constexpr int MaximumNeighborhoodSize = int(M_PI * 9);
 	constexpr int Dimensions = 2;
 	constexpr Real one_over_dimensions_ = 1.0 / (Real)Dimensions;
 	/** correction matrix, only works for thin structure dynamics. */

@@ -222,7 +222,7 @@ namespace SPH
 		DampingWithRandomChoice(Real random_ratio, ConstructorArgs &&...args)
 		: DampingAlgorithmType(std::forward<ConstructorArgs>(args)...), random_ratio_(random_ratio)
 	{
-		this->eta_ /= random_ratio;
+		DampingAlgorithmType::Coefficient().rescaleCoefficient(1.0 / random_ratio);
 	}
 	//=================================================================================================//
 	template <class DampingAlgorithmType>
