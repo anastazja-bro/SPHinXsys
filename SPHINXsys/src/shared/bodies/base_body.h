@@ -86,6 +86,7 @@ namespace SPH
 		std::string getName() { return body_name_; };
 		SPHSystem &getSPHSystem();
 		SPHBody &getSPHBody() { return *this; };
+		SPHBody &getDynamicsRange() { return *this; };
 		BaseParticles &getBaseParticles() { return *base_particles_; };
 		size_t &LoopRange() { return base_particles_->total_real_particles_; };
 		size_t SizeOfLoopRange() { return base_particles_->total_real_particles_; };
@@ -152,7 +153,13 @@ namespace SPH
 			base_particles_->initializeOtherVariables();
 			base_material_->assignBaseParticles(base_particles_);
 		};
-			
+
+		template <typename DataType>
+		void addBodyState(StdLargeVec<DataType> &variable_addrs, const std::string &variable_name)
+		{
+			base_particles_->template registerVariable<DataType>(variable_addrs, variable_name);
+		};
+
 		template <typename VariableType>
 		void addBodyStateForRecording(const std::string &variable_name)
 		{
@@ -163,6 +170,12 @@ namespace SPH
 		void addDerivedBodyStateForRecording()
 		{
 			base_particles_->template addDerivedVariableToWrite<DerivedVariableMethod>();
+		};
+
+		template <typename VariableType>
+		void addBodyStateToRestart(const std::string &variable_name)
+		{
+			base_particles_->template addVariableToRestart<VariableType>(variable_name);
 		};
 
 		virtual void writeParticlesToVtuFile(std::ostream &output_file);

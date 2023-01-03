@@ -6,7 +6,7 @@
 
 namespace SPH
 {
-//=========================================================================================================//
+	//=========================================================================================================//
 	namespace solid_dynamics
 	{
 		//=================================================================================================//
@@ -77,16 +77,7 @@ namespace SPH
 		}
 		//=================================================================================================//
 		ShellContactDensity::ShellContactDensity(SurfaceContactRelation &solid_body_contact_relation)
-			: LocalDynamics(solid_body_contact_relation.sph_body_)
-			, ContactDynamicsData(solid_body_contact_relation)
-			, solid_(particles_->solid_)
-			, pos_(particles_->pos_)
-			, kernel_(solid_body_contact_relation.sph_body_.sph_adaptation_->getKernel())
-			, particle_spacing_(solid_body_contact_relation.sph_body_.sph_adaptation_->ReferenceSpacing())
-			, calibration_factor_(StdVec<Real>(contact_configuration_.size(), 0.0))
-			, contact_h_ratio_(StdVec<Real>(contact_configuration_.size(), 0.0))
-			, offset_W_ij_(StdVec<Real>(contact_configuration_.size(), 0.0))
-			, contact_particle_spacing_(StdVec<Real>(contact_configuration_.size(), 0.0))
+			: LocalDynamics(solid_body_contact_relation.sph_body_), ContactDynamicsData(solid_body_contact_relation), solid_(particles_->solid_), pos_(particles_->pos_), kernel_(solid_body_contact_relation.sph_body_.sph_adaptation_->getKernel()), particle_spacing_(solid_body_contact_relation.sph_body_.sph_adaptation_->ReferenceSpacing()), calibration_factor_(StdVec<Real>(contact_configuration_.size(), 0.0)), contact_h_ratio_(StdVec<Real>(contact_configuration_.size(), 0.0)), offset_W_ij_(StdVec<Real>(contact_configuration_.size(), 0.0)), contact_particle_spacing_(StdVec<Real>(contact_configuration_.size(), 0.0))
 		{
 			particles_->registerVariable(contact_density_, "ContactDensity");
 
@@ -97,7 +88,7 @@ namespace SPH
 				contact_particle_spacing_[k] = 0.5 * dp_1 + 0.5 * dp_2;
 				contact_h_ratio_[k] = dp_1 / contact_particle_spacing_[k];
 				offset_W_ij_[k] = kernel_->W(contact_h_ratio_[k], contact_particle_spacing_[k], zero_vec);
-				
+
 				contact_Vol_.push_back(&(contact_particles_[k]->Vol_));
 				contact_n_.push_back(&(contact_particles_[k]->n_));
 				contact_pos_.push_back(&(contact_particles_[k]->pos_));
@@ -113,17 +104,12 @@ namespace SPH
 					if (Dimensions == 2)
 					{
 						contact_max_ = 2.0 *
-							(kernel_->W(contact_h_ratio_[k], three_gaussian_points_[i] * contact_particle_spacing_[k] * 0.5 + contact_particle_spacing_[k] * 0.5, Vec2d{0,0})
-								- offset_W_ij_[k])
-							* contact_particle_spacing_[k] * 0.5 * three_gaussian_weights_[i];
+									   (kernel_->W(contact_h_ratio_[k], three_gaussian_points_[i] * contact_particle_spacing_[k] * 0.5 + contact_particle_spacing_[k] * 0.5, Vec2d{0, 0}) - offset_W_ij_[k]) * contact_particle_spacing_[k] * 0.5 * three_gaussian_weights_[i];
 					}
 					else
 					{
 						contact_max_ =
-							(kernel_->W(contact_h_ratio_[k], three_gaussian_points_[i] * contact_particle_spacing_[k] * 0.5 + contact_particle_spacing_[k] * 0.5, Vec3d{0,0,0})
-								- offset_W_ij_[k])
-							* 2.0 * Pi * (three_gaussian_points_[i] * contact_particle_spacing_[k] * 0.5 + contact_particle_spacing_[k] * 0.5)
-							* contact_particle_spacing_[k] * 0.5 * three_gaussian_weights_[i];
+							(kernel_->W(contact_h_ratio_[k], three_gaussian_points_[i] * contact_particle_spacing_[k] * 0.5 + contact_particle_spacing_[k] * 0.5, Vec3d{0, 0, 0}) - offset_W_ij_[k]) * 2.0 * Pi * (three_gaussian_points_[i] * contact_particle_spacing_[k] * 0.5 + contact_particle_spacing_[k] * 0.5) * contact_particle_spacing_[k] * 0.5 * three_gaussian_weights_[i];
 					}
 				}
 				/** a calibration factor to avoid particle penetration into shell structure */
@@ -270,7 +256,7 @@ namespace SPH
 		PairwiseFrictionFromWall::
 			PairwiseFrictionFromWall(BaseContactRelation &contact_relation, Real eta)
 			: LocalDynamics(contact_relation.sph_body_), ContactWithWallData(contact_relation),
-			  eta_(eta), Vol_(particles_->Vol_), mass_(particles_->mass_),
+			  eta_(particles_, eta), Vol_(particles_->Vol_), mass_(particles_->mass_),
 			  vel_(particles_->vel_)
 		{
 			for (size_t k = 0; k != contact_particles_.size(); ++k)
@@ -286,8 +272,6 @@ namespace SPH
 			Real mass_i = mass_[index_i];
 			Vecd &vel_i = vel_[index_i];
 
-			std::array<Real, MaximumNeighborhoodSize> parameter_b;
-
 			/** Contact interaction. */
 			for (size_t k = 0; k < contact_configuration_.size(); ++k)
 			{
@@ -300,13 +284,14 @@ namespace SPH
 					size_t index_j = contact_neighborhood.j_[n];
 					Vecd &e_ij = contact_neighborhood.e_ij_[n];
 
-					parameter_b[n] = eta_ * contact_neighborhood.dW_ijV_j_[n] * Vol_i * dt / contact_neighborhood.r_ij_[n];
+					Real parameter_b = 2.0 * eta_(index_i) * contact_neighborhood.dW_ijV_j_[n] *
+									   Vol_i * dt / contact_neighborhood.r_ij_[n];
 
 					// only update particle i
 					Vecd vel_derivative = (vel_i - vel_k[index_j]);
 					Vecd n_j = e_ij.dot(n_k[index_j]) > 0.0 ? n_k[index_j] : -1.0 * n_k[index_j];
 					vel_derivative -= SMAX(0.0, vel_derivative.dot(n_j)) * n_j;
-					vel_i += parameter_b[n] * vel_derivative / (mass_i - 2.0 * parameter_b[n]);
+					vel_i += parameter_b * vel_derivative / (mass_i - 2.0 * parameter_b);
 				}
 				// backward sweep
 				for (size_t n = contact_neighborhood.current_size_; n != 0; --n)
@@ -314,11 +299,14 @@ namespace SPH
 					size_t index_j = contact_neighborhood.j_[n - 1];
 					Vecd &e_ij = contact_neighborhood.e_ij_[n];
 
+					Real parameter_b = 2.0 * eta_(index_i) * contact_neighborhood.dW_ijV_j_[n - 1] *
+									   Vol_i * dt / contact_neighborhood.r_ij_[n - 1];
+
 					// only update particle i
 					Vecd vel_derivative = (vel_i - vel_k[index_j]);
 					Vecd n_j = e_ij.dot(n_k[index_j]) > 0.0 ? n_k[index_j] : -1.0 * n_k[index_j];
 					vel_derivative -= SMAX(0.0, vel_derivative.dot(n_j)) * n_j;
-					vel_i += parameter_b[n - 1] * vel_derivative / (mass_i - 2.0 * parameter_b[n - 1]);
+					vel_i += parameter_b * vel_derivative / (mass_i - 2.0 * parameter_b);
 				}
 			}
 		}

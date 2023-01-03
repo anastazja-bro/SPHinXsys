@@ -146,5 +146,36 @@ namespace SPH
 		Operation operation_;
 		std::string quantity_name_;
 	};
+
+	/**
+	 * @class InteractionComplex
+	 * @brief
+	 */
+	template <class InteractionInnerType, class InteractionContactType>
+	class InteractionComplex : public LocalDynamics
+	{
+	public:
+		template <typename... Args>
+		InteractionComplex(BaseInnerRelation &inner_relation,
+						   BaseContactRelation &contact_relation, Args &&...args)
+			: LocalDynamics(inner_relation.sph_body_),
+			  inner_interaction_(inner_relation, std::forward<Args>(args)...),
+			  contact_interaction_(contact_relation, std::forward<Args>(args)...){};
+		template <typename... Args>
+		InteractionComplex(ComplexRelation &complex_wall_relation, Args &&...args)
+			: InteractionComplex(complex_wall_relation.getInnerRelation(),
+								 complex_wall_relation.getContactRelation(),
+								 std::forward<Args>(args)...){};
+		virtual ~InteractionComplex(){};
+
+		void interaction(size_t index_i, Real dt = 0.0)
+		{
+			inner_interaction_.interaction(index_i, dt);
+			contact_interaction_.interaction(index_i, dt);
+		};
+	protected:
+		InteractionInnerType inner_interaction_;
+		InteractionContactType contact_interaction_;
+	};
 }
 #endif // BASE_LOCAL_DYNAMICS_H

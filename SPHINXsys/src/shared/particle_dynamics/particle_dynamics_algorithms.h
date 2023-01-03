@@ -99,10 +99,10 @@ namespace SPH
 		DynamicsRange &dynamics_range_;
 
 	public:
-		template <class DerivedDynamicsRange, typename... Args>
-		SimpleDynamics(DerivedDynamicsRange &derived_dynamics_range, Args &&...args)
-			: LocalDynamicsType(derived_dynamics_range, std::forward<Args>(args)...),
-			  BaseDynamics<void>(), dynamics_range_(derived_dynamics_range)
+		template <class DynamicsIdentifier, typename... Args>
+		SimpleDynamics(DynamicsIdentifier &identifier, Args &&...args)
+			: LocalDynamicsType(identifier, std::forward<Args>(args)...),
+			  BaseDynamics<void>(), dynamics_range_(identifier.getDynamicsRange())
 		{
 			static_assert(!has_initialize<LocalDynamicsType>::value &&
 							  !has_interaction<LocalDynamicsType>::value,
@@ -144,10 +144,10 @@ namespace SPH
 		DynamicsRange &dynamics_range_;
 
 	public:
-		template <class DerivedDynamicsRange, typename... Args>
-		ReduceDynamics(DerivedDynamicsRange &derived_dynamics_range, Args &&...args)
-			: LocalDynamicsType(derived_dynamics_range, std::forward<Args>(args)...),
-			  BaseDynamics<ReturnType>(), dynamics_range_(derived_dynamics_range){};
+		template <class DynamicsIdentifier, typename... Args>
+		ReduceDynamics(DynamicsIdentifier &identifier, Args &&...args)
+			: LocalDynamicsType(identifier, std::forward<Args>(args)...),
+			  BaseDynamics<ReturnType>(), dynamics_range_(identifier.getDynamicsRange()){};
 		virtual ~ReduceDynamics(){};
 
 		using ReduceReturnType = ReturnType;
@@ -189,9 +189,9 @@ namespace SPH
 		}
 
 	public:
-		template <class DerivedDynamicsRange, typename... Args>
-		ReduceAverage(DerivedDynamicsRange &derived_dynamics_range, Args &&...args)
-			: ReduceDynamics<LocalDynamicsType, DynamicsRange>(derived_dynamics_range, std::forward<Args>(args)...){};
+		template <class DynamicsIdentifier, typename... Args>
+		ReduceAverage(DynamicsIdentifier &identifier, Args &&...args)
+			: ReduceDynamics<LocalDynamicsType, DynamicsRange>(identifier, std::forward<Args>(args)...){};
 		virtual ~ReduceAverage(){};
 		/** The sequential function for executing the average operations on particles. */
 		virtual ReturnType exec(Real dt = 0.0) override

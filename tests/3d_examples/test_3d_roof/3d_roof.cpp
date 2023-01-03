@@ -148,10 +148,10 @@ int main(int ac, char *av[])
 	Dynamics1Level<thin_structure_dynamics::ShellStressRelaxationSecondHalf>
 		stress_relaxation_second_half(cylinder_body_inner);
 	BoundaryGeometry boundary_geometry(cylinder_body, "BoundaryGeometry");
-	SimpleDynamics<solid_dynamics::FixedInAxisDirection, BoundaryGeometry> constrain_holder(boundary_geometry, Vecd(0.0, 1.0, 0.0));
-	DampingWithRandomChoice<InteractionSplit<DampingBySplittingInner<Vecd>>>
+	SimpleDynamics<solid_dynamics::FixedInAxisDirection, BodyPartByParticle> constrain_holder(boundary_geometry, Vecd(0.0, 1.0, 0.0));
+	DampingWithRandomChoice<InteractionSplit<DampingSplittingInner<Vecd>>>
 		cylinder_position_damping(0.2, cylinder_body_inner, "Velocity", physical_viscosity);
-	DampingWithRandomChoice<InteractionSplit<DampingBySplittingInner<Vecd>>>
+	DampingWithRandomChoice<InteractionSplit<DampingSplittingInner<Vecd>>>
 		cylinder_rotation_damping(0.2, cylinder_body_inner, "AngularVelocity", physical_viscosity);
 	/** Output */
 	IOEnvironment io_environment(system);

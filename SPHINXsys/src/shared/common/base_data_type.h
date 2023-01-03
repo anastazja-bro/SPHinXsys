@@ -108,6 +108,21 @@ namespace SPH
 	{
 		static inline int value = 0;
 	};
+	template <typename DataType>
+	struct OnesData
+	{
+		static inline DataType value = DataType::Ones();
+	};
+	template <>
+	struct OnesData<Real>
+	{
+		static inline Real value = 1.0;
+	};
+	template <>
+	struct OnesData<int>
+	{
+		static inline int value = 1;
+	};
 	/** Type trait for data type index. */
 	template <typename T>
 	struct DataTypeIndex

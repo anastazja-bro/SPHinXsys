@@ -101,8 +101,8 @@ int main(int ac, char *av[])
 	/** Constrain the holder. */
 	BodyRegionByParticle holder(cantilever_body,
 								makeShared<TransformShape<GeometricShapeBox>>(Transformd(translation_holder), halfsize_holder, "Holder"));
-	SimpleDynamics<solid_dynamics::FixConstraint, BodyRegionByParticle> constraint_holder(holder);
-	DampingWithRandomChoice<InteractionSplit<DampingBySplittingInner<Vec3d>>>
+	SimpleDynamics<solid_dynamics::FixConstraint, BodyPartByParticle> constraint_holder(holder);
+	DampingWithRandomChoice<InteractionSplit<DampingSplittingInner<Vec3d>>>
 		muscle_damping(0.1, cantilever_body_inner, "Velocity", physical_viscosity);
 	/** Output */
 	IOEnvironment io_environment(system);

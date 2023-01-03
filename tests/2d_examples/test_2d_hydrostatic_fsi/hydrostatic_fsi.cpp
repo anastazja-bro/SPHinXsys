@@ -1,7 +1,7 @@
 /**
  * @file 	hydrostatic_fsi.cpp
  * @brief 	structure deformation due to hydrostatic pressure under gravity.
- * @details This is the one of the basic test cases 
+ * @details This is the one of the basic test cases
  * for understanding SPH method for fluid-structure-interaction (FSI) simulation.
  * @author 	Yujie Zhu, Chi Zhang and Xiangyu Hu
  * @version 0.1
@@ -44,7 +44,7 @@ Vec2d ConstrainRP_lb(Dam_L, -Gate_width);
 Vec2d ConstrainRP_lt(Dam_L, 0.0);
 Vec2d ConstrainRP_rt(Dam_L + BW, 0.0);
 Vec2d ConstrainRP_rb(Dam_L + BW, -Gate_width);
-//observer location
+// observer location
 StdVec<Vecd> observation_location = {Vecd(0.5 * Dam_L, -0.5 * Gate_width)};
 //----------------------------------------------------------------------
 //	Material properties of the fluid.
@@ -151,7 +151,7 @@ public:
 //----------------------------------------------------------------------
 MultiPolygon createGateConstrainShape()
 {
-	//geometry
+	// geometry
 	std::vector<Vecd> gate_constraint_shape_left;
 	gate_constraint_shape_left.push_back(ConstrainLP_lb);
 	gate_constraint_shape_left.push_back(ConstrainLP_lt);
@@ -176,7 +176,7 @@ MultiPolygon createGateConstrainShape()
 //----------------------------------------------------------------------
 std::vector<Vecd> createGateConstrainShapeRight()
 {
-	//geometry
+	// geometry
 	std::vector<Vecd> gate_constraint_shape;
 	gate_constraint_shape.push_back(ConstrainRP_lb);
 	gate_constraint_shape.push_back(ConstrainRP_lt);
@@ -201,7 +201,7 @@ int main()
 	//----------------------------------------------------------------------
 	//	Creating body, materials and particles.
 	//----------------------------------------------------------------------
-	FluidBody water_block(system,makeShared<WaterBlock>("WaterBody"));
+	FluidBody water_block(system, makeShared<WaterBlock>("WaterBody"));
 	water_block.defineParticlesAndMaterial<FluidParticles, WeaklyCompressibleFluid>(rho0_f, c_f);
 	water_block.generateParticles<ParticleGeneratorLattice>();
 
@@ -230,7 +230,7 @@ int main()
 	//----------------------------------------------------------------------
 	//	Define all numerical methods which are used in this case.
 	//----------------------------------------------------------------------
-	/** Initialize particle acceleration. */ //TODO: this is missing for solid body.
+	/** Initialize particle acceleration. */ // TODO: this is missing for solid body.
 	SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<Gravity>(Vecd(0.0, -gravity_g)));
 	/** Evaluation of fluid density by summation approach. */
 	InteractionWithUpdate<fluid_dynamics::DensitySummationFreeSurfaceComplex> update_fluid_density(water_block_complex);
@@ -242,7 +242,8 @@ int main()
 	Dynamics1Level<fluid_dynamics::Integration1stHalfRiemannWithWall> pressure_relaxation(water_block_complex);
 	Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWall> density_relaxation(water_block_complex);
 	InteractionDynamics<fluid_dynamics::ViscousAccelerationWithWall> viscous_acceleration(water_block_complex);
-	DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, DampingPairwiseInner>>>
+	DampingWithRandomChoice<InteractionSplit<
+		DampingPairwiseWithWall<DampingPairwiseInner<Vec2d>, DampingPairwiseFromWall<Vec2d>>>>
 		fluid_damping(0.2, water_block_complex, "Velocity", mu_f);
 	SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
 	SimpleDynamics<NormalDirectionFromBodyShape> gate_normal_direction(gate);
@@ -255,7 +256,7 @@ int main()
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> gate_stress_relaxation_second_half(gate_inner);
 	/**Constrain a solid body part.  */
 	BodyRegionByParticle gate_constraint_part(gate, makeShared<MultiPolygonShape>(createGateConstrainShape()));
-	SimpleDynamics<solid_dynamics::FixConstraint, BodyRegionByParticle> gate_constraint(gate_constraint_part);
+	SimpleDynamics<solid_dynamics::FixConstraint, BodyPartByParticle> gate_constraint(gate_constraint_part);
 	/** Update the norm of elastic gate. */
 	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> gate_update_normal(gate);
 	/** Compute the average velocity of gate. */
@@ -294,10 +295,10 @@ int main()
 	//----------------------------------------------------------------------
 	size_t number_of_iterations = 0;
 	int screen_output_interval = 100;
-	Real end_time = 0.5;		   /**< End time. */
+	Real end_time = 0.5; /**< End time. */
 	Real output_interval = end_time / 50.0;
-	Real dt = 0.0;				   /**< Default acoustic time step sizes. */
-	Real dt_s = 0.0;			   /**< Default acoustic time step sizes for solid. */
+	Real dt = 0.0;	 /**< Default acoustic time step sizes. */
+	Real dt_s = 0.0; /**< Default acoustic time step sizes for solid. */
 	tick_count t1 = tick_count::now();
 	tick_count::interval_t interval;
 	//----------------------------------------------------------------------
@@ -352,7 +353,7 @@ int main()
 			number_of_iterations++;
 
 			/** Update cell linked list and configuration. */
-			water_block.updateCellLinkedList(); //water particle motion is small
+			water_block.updateCellLinkedList(); // water particle motion is small
 			water_block_complex.updateConfiguration();
 			/** one need update configuration after periodic condition. */
 			gate.updateCellLinkedList();
