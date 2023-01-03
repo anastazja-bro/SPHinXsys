@@ -374,7 +374,8 @@ int main()
 	Real Observe_time = 0.01 * End_Time;
 	Real dt = 1.0e-4;
 	Real dt_coeff = SMIN(dt, 0.25 * resolution_ref * resolution_ref / reference_temperature);
-	int target_ite = 10; // default number of iteration for imposing target
+	int target_steps = 10; // default number of iteration for imposing target
+	bool imposing_target = true;
 	Real allowed_equation_residue = 2.0e5;
 	//----------------------------------------------------------------------
 	//	First output before the main loop.
@@ -389,33 +390,38 @@ int main()
 		Real equation_residue_max = Infinity; // initial value
 		while (relaxation_time < Observe_time)
 		{
+			// equation solving step
 			thermal_source.parallel_exec(dt);
 			implicit_heat_transfer_solver.parallel_exec(dt);
+			relaxation_time += dt;
+			GlobalStaticVariables::physical_time_ += dt;
 
-			update_reference_coefficient.parallel_exec();
-			for (size_t k = 0; k != target_ite; ++k)
+			if (imposing_target)
 			{
-				target_source.parallel_exec(dt_coeff);
-				coefficient_evolution_with_wall.parallel_exec(dt_coeff);
-				constrain_total_coefficient.parallel_exec();
+				// target imposing step
+				update_reference_coefficient.parallel_exec();
+				for (size_t k = 0; k != target_steps; ++k)
+				{
+					target_source.parallel_exec(dt_coeff);
+					coefficient_evolution_with_wall.parallel_exec(dt_coeff);
+					constrain_total_coefficient.parallel_exec();
+				}
 			}
 
+			// residue evaluation step
 			thermal_equation_residue.parallel_exec();
 			Real residue_max_after_target = maximum_equation_residue.parallel_exec();
 			if (residue_max_after_target > equation_residue_max && residue_max_after_target > allowed_equation_residue)
 			{
-				target_ite = 0; // imposing target skipped for next iteration step
+				imposing_target = false; // imposing target skipped for next iteration
 			}
 			else
 			{
-				target_ite = 10;
+				imposing_target = true;
 				equation_residue_max = residue_max_after_target;
 			}
 
 			ite++;
-			relaxation_time += dt;
-			GlobalStaticVariables::physical_time_ += dt;
-
 			if (ite % 100 == 0)
 			{
 				std::cout << "N= " << ite << " Time: " << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
