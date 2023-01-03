@@ -374,7 +374,7 @@ int main()
 	Real Observe_time = 0.01 * End_Time;
 	Real dt = 1.0e-4;
 	Real dt_coeff = SMIN(dt, 0.25 * resolution_ref * resolution_ref / reference_temperature);
-	int k_ite = 10; // default number of iteration for imposing target
+	int target_ite = 10; // default number of iteration for imposing target
 	Real allowed_equation_residue = 2.0e5;
 	//----------------------------------------------------------------------
 	//	First output before the main loop.
@@ -391,11 +391,9 @@ int main()
 		{
 			thermal_source.parallel_exec(dt);
 			implicit_heat_transfer_solver.parallel_exec(dt);
-			thermal_equation_residue.parallel_exec();
-			Real residue_max_before_target = maximum_equation_residue.parallel_exec();
 
 			update_reference_coefficient.parallel_exec();
-			for (size_t k = 0; k != k_ite; ++k)
+			for (size_t k = 0; k != target_ite; ++k)
 			{
 				target_source.parallel_exec(dt_coeff);
 				coefficient_evolution_with_wall.parallel_exec(dt_coeff);
@@ -406,11 +404,11 @@ int main()
 			Real residue_max_after_target = maximum_equation_residue.parallel_exec();
 			if (residue_max_after_target > equation_residue_max && residue_max_after_target > allowed_equation_residue)
 			{
-				k_ite = 0; // imposing target skipped for next iteration step
+				target_ite = 0; // imposing target skipped for next iteration step
 			}
 			else
 			{
-				k_ite = 10;
+				target_ite = 10;
 				equation_residue_max = residue_max_after_target;
 			}
 
