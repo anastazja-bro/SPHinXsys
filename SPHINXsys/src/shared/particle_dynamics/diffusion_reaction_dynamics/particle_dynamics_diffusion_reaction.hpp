@@ -23,7 +23,7 @@
 /**
  * @file 	particle_dynamics_diffusion_reaction.hpp
  * @brief 	This is the particle dynamics applicable for all type bodies
- * 			TODO: there is an issue on applying corrected configuration for contact bodies.. 
+ * 			TODO: there is an issue on applying corrected configuration for contact bodies..
  * @author	Chi ZHang and Xiangyu Hu
  */
 
@@ -57,9 +57,9 @@ namespace SPH
 		RelaxationOfAllDiffusionSpeciesInner(BaseInnerRelation &inner_relation)
 		: LocalDynamics(inner_relation.sph_body_),
 		  DiffusionReactionInnerData<BaseParticlesType, BaseMaterialType, NUM_SPECIES>(inner_relation),
-		  diffusion_reaction_material_(this->particles_->diffusion_reaction_material_),
 		  species_n_(this->particles_->species_n_),
-		  diffusion_dt_(this->particles_->diffusion_dt_)
+		  diffusion_dt_(this->particles_->diffusion_dt_),
+		  diffusion_reaction_material_(this->particles_->diffusion_reaction_material_)
 	{
 		species_diffusion_ = this->particles_->diffusion_reaction_material_.SpeciesDiffusion();
 	}
@@ -249,12 +249,14 @@ namespace SPH
 
 		size_t number_of_diffusion_species = species_diffusion_.size();
 		species_s_.resize(number_of_diffusion_species);
+
+		constexpr int type_index = DataTypeIndex<Real>::value;
 		for (size_t m = 0; m < number_of_diffusion_species; ++m)
 		{
 			// the size should be the same as that in the base particles
 			species_s_[m].resize(rk2_1st_stage_.getParticles()->real_particles_bound_);
 			// register data in base particles
-			std::get<0>(rk2_1st_stage_.getParticles()->all_particle_data_).push_back(&species_s_[m]);
+			std::get<type_index>(rk2_1st_stage_.getParticles()->all_particle_data_).push_back(&species_s_[m]);
 		}
 	}
 	//=================================================================================================//
