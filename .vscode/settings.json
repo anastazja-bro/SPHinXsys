@@ -1,0 +1,11 @@
+{
+    "cmake.configureEnvironment": {
+        "VCPKG_ROOT": "${userHome}/vcpkg"
+    },
+    "cmake.configureSettings": {
+        "CMAKE_TOOLCHAIN_FILE:FILEPATH": "${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+         "CMAKE_VERBOSE_MAKEFILE:BOOL": "ON"
+    },
+    "cmake.buildDirectory": "${workspaceFolder}/build/${buildKitVendor}-${buildKitVersion}/${buildType}",
+    "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json"
+}

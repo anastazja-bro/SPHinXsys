@@ -6,6 +6,7 @@
  * @author 	Anastazja Broniatowska
  */
 #include "sphinxsys.h" //	SPHinXsys Library.
+#include "precice/SolverInterface.hpp"
 using namespace SPH;   //	Namespace cite here.
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
@@ -158,8 +159,6 @@ int main()
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
-	water_block.addBodyStateForRecording<int>("SurfaceIndicator");
-	water_block.addBodyStateForRecording<Real>("MassiveMeasure");
 	water_block.addBodyStateForRecording<Real>("Density");
 	BodyStatesRecordingToPlt write_real_body_states_to_plt(io_environment, system.real_bodies_);
 	BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, system.real_bodies_);
@@ -250,14 +249,6 @@ int main()
 			gate_water_contact_relation.updateConfiguration();
 			/** Output the observed data. */
 			write_beam_tip_displacement.writeToFile(number_of_iterations);
-			StdLargeVec<int>& surface_indicator =*(water_block.getBaseParticles().getVariableByName<int>("SurfaceIndicator"));
-				for (size_t index = 0; index < surface_indicator.size(); ++index)
-				{
-					if (surface_indicator[index] == 1)
-					{
-						water_block.getBaseParticles().vel_[index][2] = 0.;
-					}
-				}
 		}
 		tick_count t2 = tick_count::now();
 		tick_count t3 = tick_count::now();
