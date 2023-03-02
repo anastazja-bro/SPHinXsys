@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+
+<precice-configuration>
+
+  <solver-interface dimensions="3">
+
+    <data:vector name="Forces"/>
+    <data:vector name="Displacements"/>
+
+    <mesh name="FluidMesh">
+      <use-data name="Forces"/>
+      <use-data name="Displacements"/>
+    </mesh>
+
+    <mesh name="StructureMesh">
+      <use-data name="Forces"/>
+      <use-data name="Displacements"/>
+    </mesh>
+
+    <participant name="FluidSolver">
+      <use-mesh name="FluidMesh" provide="yes"/>
+      <use-mesh name="StructureMesh" from="SolidSolver"/>
+      <write-data name="Forces" mesh="FluidMesh"/>
+      <read-data  name="Displacements" mesh="FluidMesh"/>
+      <mapping:nearest-neighbor direction="write" from="FluidMesh" 
+                                to="StructureMesh" constraint="conservative"/>
+      <mapping:nearest-neighbor direction="read" from="StructureMesh" 
+                                to="FluidMesh" constraint="consistent"/>
+    </participant>
+
+    <participant name="SolidSolver">
+      <use-mesh name="StructureMesh" provide="yes"/>
+      <write-data name="Displacements" mesh="StructureMesh"/>
+      <read-data  name="Forces" mesh="StructureMesh"/>
+    </participant>
+
+    <m2n:sockets from="FluidSolver" to="SolidSolver" exchange-directory="../.."/>
+
+    <coupling-scheme:serial-explicit>
+      <participants first="FluidSolver" second="SolidSolver"/>
+      <max-time-windows value="10" />
+      <time-window-size value="0.0001" />
+      <exchange data="Forces" mesh="StructureMesh" from="FluidSolver" to="SolidSolver"/>
+      <exchange data="Displacements" mesh="StructureMesh" from="SolidSolver" to="FluidSolver"/>
+    </coupling-scheme:serial-explicit>
+
+  </solver-interface>
+
+</precice-configuration>

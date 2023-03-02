@@ -58,9 +58,11 @@ public:
 	{
 		Vecd halfsize_outer(0.5 * DL + BW, 0.5 * DH + BW, 0.5 * DW + BW);
 		Vecd halfsize_inner(0.5 * DL, 0.5 * DH, 0.5 * DW);
-		Transformd translation_wall(halfsize_inner);
-		add<TransformShape<GeometricShapeBox>>(Transformd(translation_wall), halfsize_outer);
-		subtract<TransformShape<GeometricShapeBox>>(Transformd(translation_wall), halfsize_inner);
+		Vecd halfsize_gate(0.5 * Gate_width, 0.5 * (DH - Base_bottom_position) , 0.5 * DW);
+		Vecd translation_gate(Dam_L + 0.5 * Gate_width, 0.5 * (DH + Base_bottom_position), 0.5 * DW );
+		add<TransformShape<GeometricShapeBox>>(Transformd(halfsize_inner), halfsize_outer);
+		subtract<TransformShape<GeometricShapeBox>>(Transformd(halfsize_inner), halfsize_inner);
+		add<TransformShape<GeometricShapeBox>>(Transformd(translation_gate), halfsize_gate);
 	}
 };
 
@@ -69,20 +71,11 @@ class GateShape : public ComplexShape
 public:
 	explicit GateShape(const std::string &shape_name) : ComplexShape(shape_name)
 	{
-		Vecd halfsize_gate(0.5 * Gate_width, 0.5 * DH, 0.5 * DW);
-		Vecd translation_gate(Dam_L + 0.5 * Gate_width, 0.5 * DH, 0.5 * DW );
+		Vecd halfsize_gate(0.26 * resolution_ref, 0.5 * (Base_bottom_position - 0.001), 0.5 * DW);
+		Vecd translation_gate(Dam_L + 0.26 * resolution_ref, 0.5 * (Base_bottom_position + 0.001), 0.5 * DW );
 		add<TransformShape<GeometricShapeBox>>(Transformd(translation_gate), halfsize_gate);
 	}
 };
-
-SharedPtr<ComplexShape> createGateConstraint()
-{
-	auto constraint = makeShared<ComplexShape>("Constraint");
-	Vecd halfsize_gate(0.5 * Gate_width, 0.5 * (DH - Base_bottom_position) , 0.5 * DW);
-	Vecd translation_gate(Dam_L + 0.5 * Gate_width, 0.5 * (DH + Base_bottom_position), 0.5 * DW );
-	constraint->add<TransformShape<GeometricShapeBox>>(Transformd(translation_gate), halfsize_gate);
-	return constraint;
-}
 
 //----------------------------------------------------------------------
 //	Main program starts here.
@@ -152,9 +145,6 @@ int main()
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> gate_stress_relaxation_second_half(gate_inner_relation);
 	ReduceDynamics<solid_dynamics::AcousticTimeStepSize> gate_computing_time_step_size(gate);
 
-	auto constraint = createGateConstraint();
-	BodyRegionByParticle gate_base(gate, constraint);
-	SimpleDynamics<solid_dynamics::FixConstraint, BodyRegionByParticle> constraint_gate_base(gate_base);
 	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> gate_update_normal(gate);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -192,6 +182,36 @@ int main()
 	write_real_body_states_to_vtp.writeToFile();
 	write_beam_tip_displacement.writeToFile();
 	//----------------------------------------------------------------------
+	// preCICE set up
+	//----------------------------------------------------------------------
+	precice::SolverInterface precice("FluidSolver", "precice-config.xml",0,1);
+	int dim = precice.getDimensions();
+	int meshID = precice.getMeshID("FluidMesh");
+	int vertexSize; // number of vertices at wet surface 
+	vertexSize = gate.LoopRange();
+	std::cout << vertexSize << std::endl;
+
+	// coords of coupling vertices must be in format (x0,y0,z0,x1,y1,z1,...)
+	vector<double> coords; 
+	coords.reserve(vertexSize*dim);
+	for(int index = 0; index < vertexSize; ++index)
+	{
+		for(int dimension = 0; dimension < dim; ++dimension)
+		{
+			coords.push_back(gate.getBaseParticles().pos_[index][dimension]);
+		}
+	}
+	vector<int> vertexIDs(vertexSize);
+	precice.setMeshVertices(meshID, vertexSize, coords.data(), vertexIDs.data()); 
+
+	int displID = precice.getDataID("Displacements", meshID); 
+	int forceID = precice.getDataID("Forces", meshID); 
+	vector<double> forces(vertexSize*dim);
+	vector<double> displacements(vertexSize*dim);
+
+	double precice_dt; // maximum precice timestep size
+	precice_dt = precice.initialize();
+	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
 	while (GlobalStaticVariables::physical_time_ < end_time)
@@ -210,24 +230,46 @@ int main()
 			while (relaxation_time < Dt)
 			{
 				/** Fluid relaxation and force computation. */
+				dt = get_fluid_time_step_size.parallel_exec();
+				dt= min(precice_dt, dt);
 				pressure_relaxation.parallel_exec(dt);
 				fluid_pressure_force_on_gate.parallel_exec();
 				density_relaxation.parallel_exec(dt);
-				/** Solid dynamics time stepping. */
-				Real dt_s_sum = 0.0;
-				average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
-				while (dt_s_sum < dt)
+				/* set forces vector for preCICE in format (fx0,fy0,fz0,fx1,fy1,fz1,...)*/
+				for(int index = 0; index < vertexSize; ++index)
 				{
-					dt_s = gate_computing_time_step_size.parallel_exec();
-					if (dt - dt_s_sum < dt_s)
-						dt_s = dt - dt_s_sum;
-					gate_stress_relaxation_first_half.parallel_exec(dt_s);
-					constraint_gate_base.parallel_exec();
-					gate_stress_relaxation_second_half.parallel_exec(dt_s);
-					dt_s_sum += dt_s;
+					for(int dimension = 0; dimension < dim; ++dimension)
+					{
+						forces[index*dim+dimension] = gate.getBaseParticles().acc_prior_[index][dimension]*
+												gate.getBaseParticles().ParticleMass(index);
+					}
 				}
+				precice.writeBlockVectorData(forceID, vertexSize, vertexIDs.data(), forces.data());
+				/** Solid dynamics time stepping. */
+				//Real dt_s_sum = 0.0;
+				average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
+				// read displacements from preCICE and update gate particles positions
+				precice.readBlockVectorData(displID, vertexSize, vertexIDs.data(), displacements.data());
+				for(int index = 0; index < vertexSize; ++index)
+				{
+					for(int dimension = 0; dimension < dim; ++dimension)
+					{
+						gate.getBaseParticles().pos_[index][dimension] += displacements[index*dim+dimension];
+					}
+				}
+				
+				// while (dt_s_sum < dt)
+				// {
+				// 	dt_s = gate_computing_time_step_size.parallel_exec();
+				// 	if (dt - dt_s_sum < dt_s)
+				// 		dt_s = dt - dt_s_sum;
+				// 	gate_stress_relaxation_first_half.parallel_exec(dt_s);
+				// 	gate_stress_relaxation_second_half.parallel_exec(dt_s);
+				// 	dt_s_sum += dt_s;
+				// }
 				average_velocity_and_acceleration.update_averages_.parallel_exec(dt);
-				dt = get_fluid_time_step_size.parallel_exec();
+				/* advance precice, exchange and process all the data */
+				precice_dt = precice.advance(dt);
 				relaxation_time += dt;
 				integration_time += dt;
 				GlobalStaticVariables::physical_time_ += dt;
@@ -260,6 +302,9 @@ int main()
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
 	write_beam_tip_displacement.newResultTest();
+
+	/* finalize preCICE */
+	precice.finalize();
 
 	return 0;
 }
