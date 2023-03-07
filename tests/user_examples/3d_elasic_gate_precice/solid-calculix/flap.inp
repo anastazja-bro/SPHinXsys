@@ -1,0 +1,23 @@
+*INCLUDE, INPUT=all.msh
+*INCLUDE, INPUT=support.nam
+*INCLUDE, INPUT=load.nam
+*MATERIAL, Name=EL
+*ELASTIC
+ 10000000, 0.4
+*DENSITY
+ 1100
+*SOLID SECTION, Elset=Eall, Material=EL
+*STEP, INC=1000000
+*DYNAMIC, ALPHA=0.0, DIRECT
+1.E-2, 5.0
+*BOUNDARY
+Nsupport, 1, 3
+*CLOAD
+ Nload, 1, 0.0
+ Nload, 2, 0.0
+ Nload, 3, 0.0
+*NODE FILE
+ U
+*EL FILE
+ S, E
+*END STEP

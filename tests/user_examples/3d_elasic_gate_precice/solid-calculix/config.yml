@@ -1,0 +1,10 @@
+participants:
+
+    SolidSolver:
+        interfaces:
+        - nodes-mesh: StructureMesh
+          patch: load
+          read-data: [Forces]
+          write-data: [Displacements]
+          
+precice-config-file: ../precice-config.xml
