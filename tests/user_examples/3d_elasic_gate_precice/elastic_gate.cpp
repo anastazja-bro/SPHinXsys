@@ -71,7 +71,7 @@ class GateShape : public ComplexShape
 public:
 	explicit GateShape(const std::string &shape_name) : ComplexShape(shape_name)
 	{
-		Vecd halfsize_gate(0.26 * resolution_ref, 0.5 * (Base_bottom_position - 0.001), 0.5 * DW);
+		Vecd halfsize_gate(0.51 * resolution_ref, 0.5 * (Base_bottom_position - 0.001), 0.5 * DW);
 		Vecd translation_gate(Dam_L + 0.26 * resolution_ref, 0.5 * (Base_bottom_position + 0.001), 0.5 * DW );
 		add<TransformShape<GeometricShapeBox>>(Transformd(translation_gate), halfsize_gate);
 	}
@@ -100,13 +100,13 @@ int main()
 	wall_boundary.generateParticles<ParticleGeneratorLattice>();
 
 	SolidBody gate(system, makeShared<GateShape>("Gate"));
-	gate.defineAdaptationRatios(1.15, 2.0);
+	//gate.defineAdaptationRatios(1.15, 2.0);
 	gate.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
 	gate.generateParticles<ParticleGeneratorLattice>();
 
-	ObserverBody gate_observer(system, "Observer");
-	gate_observer.defineAdaptationRatios(1.15, 2.0);
-	gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
+	// ObserverBody gate_observer(system, "Observer");
+	// gate_observer.defineAdaptationRatios(1.15, 2.0);
+	// gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
 	//----------------------------------------------------------------------
 	//	Define body relation map.
 	//	The contact map gives the topological connections between the bodies.
@@ -115,7 +115,7 @@ int main()
 	ComplexRelation water_block_complex_relation(water_block, RealBodyVector{&wall_boundary, &gate});
 	InnerRelation gate_inner_relation(gate);
 	ContactRelation gate_water_contact_relation(gate, {&water_block});
-	ContactRelation gate_observer_contact_relation(gate_observer, {&gate});
+	//ContactRelation gate_observer_contact_relation(gate_observer, {&gate});
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
@@ -152,8 +152,8 @@ int main()
 	water_block.addBodyStateForRecording<Real>("Density");
 	BodyStatesRecordingToPlt write_real_body_states_to_plt(io_environment, system.real_bodies_);
 	BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, system.real_bodies_);
-	RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
-		write_beam_tip_displacement("Position", io_environment, gate_observer_contact_relation);
+	//RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
+	//	write_beam_tip_displacement("Position", io_environment, gate_observer_contact_relation);
 	//TODO: observing position is not as good observing displacement. 
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
@@ -169,18 +169,15 @@ int main()
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	int number_of_iterations = 0;
-	int screen_output_interval = 100;
-	Real end_time = 20.0;
-	Real output_interval = end_time / 20.0;
+	int screen_output_interval = 10;
 	Real dt = 0.0;					/**< Default acoustic time step sizes. */
-	Real dt_s = 0.0;				/**< Default acoustic time step sizes for solid. */
 	tick_count t1 = tick_count::now();
 	tick_count::interval_t interval;
 	//----------------------------------------------------------------------
 	//	First output before the main loop.
 	//----------------------------------------------------------------------
 	write_real_body_states_to_vtp.writeToFile();
-	write_beam_tip_displacement.writeToFile();
+	//write_beam_tip_displacement.writeToFile();
 	//----------------------------------------------------------------------
 	// preCICE set up
 	//----------------------------------------------------------------------
@@ -189,7 +186,6 @@ int main()
 	int meshID = precice.getMeshID("FluidMesh");
 	int vertexSize; // number of vertices at wet surface 
 	vertexSize = gate.LoopRange();
-	std::cout << vertexSize << std::endl;
 
 	// coords of coupling vertices must be in format (x0,y0,z0,x1,y1,z1,...)
 	vector<double> coords; 
@@ -204,7 +200,7 @@ int main()
 	vector<int> vertexIDs(vertexSize);
 	precice.setMeshVertices(meshID, vertexSize, coords.data(), vertexIDs.data()); 
 
-	int displID = precice.getDataID("Displacements", meshID); 
+	int displID = precice.getDataID("DisplacementDeltas", meshID); 
 	int forceID = precice.getDataID("Forces", meshID); 
 	vector<double> forces(vertexSize*dim);
 	vector<double> displacements(vertexSize*dim);
@@ -214,43 +210,46 @@ int main()
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
-	while (GlobalStaticVariables::physical_time_ < end_time)
+	while (precice.isCouplingOngoing())
 	{
-		Real integration_time = 0.0;
-		/** Integrate time (loop) until the next output time. */
-		while (integration_time < output_interval)
-		{
-			/** Acceleration due to viscous force and gravity. */
-			initialize_a_fluid_step.parallel_exec();
-			Real Dt = get_fluid_advection_time_step_size.parallel_exec();
-			update_density_by_summation.parallel_exec();
-			/** Update normal direction at elastic body surface. */
-			gate_update_normal.parallel_exec();
-			Real relaxation_time = 0.0;
-			while (relaxation_time < Dt)
-			{
-				/** Fluid relaxation and force computation. */
-				dt = get_fluid_time_step_size.parallel_exec();
-				dt= min(precice_dt, dt);
-				pressure_relaxation.parallel_exec(dt);
-				/* Compute and write forces */
-				fluid_pressure_force_on_gate.parallel_exec();
-				/* write forces vector for preCICE in format (fx0,fy0,fz0,fx1,fy1,fz1,...)*/
-				for(int index = 0; index < vertexSize; ++index)
-				{
-					for(int dimension = 0; dimension < dim; ++dimension)
-					{
-						StdLargeVec<Vecd>& force_from_fluid = *(gate.getBaseParticles().getVariableByName<Vecd>("ForceFromFluid"));
-						forces[index*dim+dimension] = force_from_fluid[index][dimension];
-					}
-				}
-				precice.writeBlockVectorData(forceID, vertexSize, vertexIDs.data(), forces.data());
-								density_relaxation.parallel_exec(dt);
 
-				/** update displacements  */
-				average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
-				// read displacements from preCICE and update gate particles positions
+		/** Acceleration due to viscous force and gravity. */
+		initialize_a_fluid_step.parallel_exec();
+		Real Dt = get_fluid_advection_time_step_size.parallel_exec();
+		update_density_by_summation.parallel_exec();
+		/** Update normal direction at elastic body surface. */
+		gate_update_normal.parallel_exec();
+		Real relaxation_time = 0.0;
+		while (relaxation_time < Dt)
+		{			
+			/** Fluid relaxation and force computation. */
+			dt = get_fluid_time_step_size.parallel_exec();
+			dt= min(precice_dt, dt);
+			pressure_relaxation.parallel_exec(dt);
+			/* Compute and write forces */
+			fluid_pressure_force_on_gate.parallel_exec();
+			/* write forces vector for preCICE in format (fx0,fy0,fz0,fx1,fy1,fz1,...)*/
+			for(int index = 0; index < vertexSize; ++index)
+			{
+				for(int dimension = 0; dimension < dim; ++dimension)
+				{
+					StdLargeVec<Vecd>& force_from_fluid = *(gate.getBaseParticles().getVariableByName<Vecd>("ForceFromFluid"));
+					forces[index*dim+dimension] = force_from_fluid[index][dimension];
+				}
+			}
+			precice.writeBlockVectorData(forceID, vertexSize, vertexIDs.data(), forces.data());
+			density_relaxation.parallel_exec(dt);
+
+				
+			/* advance precice, exchange and process all the data */
+			precice_dt = precice.advance(dt);
+			// read displacements from preCICE 
+			if(precice.isTimeWindowComplete())
+			{
 				precice.readBlockVectorData(displID, vertexSize, vertexIDs.data(), displacements.data());
+				/** update positions  */
+				average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
+	
 				for(int index = 0; index < vertexSize; ++index)
 				{
 					for(int dimension = 0; dimension < dim; ++dimension)
@@ -259,41 +258,36 @@ int main()
 					}
 				}
 				average_velocity_and_acceleration.update_averages_.parallel_exec(dt);
-				
-				/* advance precice, exchange and process all the data */
-				precice_dt = precice.advance(dt);
-				relaxation_time += dt;
-				integration_time += dt;
-				GlobalStaticVariables::physical_time_ += dt;
 			}
+			
+
+			relaxation_time += dt;
+			GlobalStaticVariables::physical_time_ += dt;
+
 
 			if (number_of_iterations % screen_output_interval == 0)
 			{
-				std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
-						  << GlobalStaticVariables::physical_time_
-						  << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
 				write_real_body_states_to_vtp.writeToFile();
 			}
 			number_of_iterations++;
 
-			/** Update cell linked list and configuration. */
-			water_block.updateCellLinkedListWithParticleSort(100);
-			gate.updateCellLinkedList();
-			water_block_complex_relation.updateConfiguration();
-			gate_water_contact_relation.updateConfiguration();
-			/** Output the observed data. */
-			write_beam_tip_displacement.writeToFile(number_of_iterations);
 		}
-		tick_count t2 = tick_count::now();
-		tick_count t3 = tick_count::now();
-		interval += t3 - t2;
+
+		/** Update cell linked list and configuration. */
+		water_block.updateCellLinkedListWithParticleSort(100);
+		gate.updateCellLinkedList();
+		water_block_complex_relation.updateConfiguration();
+		gate_water_contact_relation.updateConfiguration();
+		/** Output the observed data. */
+		//write_beam_tip_displacement.writeToFile(number_of_iterations);
+
 	}
-	tick_count t4 = tick_count::now();
+	tick_count t2 = tick_count::now();
 	tick_count::interval_t tt;
-	tt = t4 - t1 - interval;
+	tt = t2 - t1;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
-	write_beam_tip_displacement.newResultTest();
+	//write_beam_tip_displacement.newResultTest();
 
 	/* finalize preCICE */
 	precice.finalize();
