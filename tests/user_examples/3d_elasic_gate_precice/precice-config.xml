@@ -5,23 +5,23 @@
   <solver-interface dimensions="3">
 
     <data:vector name="Forces"/>
-    <data:vector name="Displacements"/>
+    <data:vector name="DisplacementDeltas"/>
 
     <mesh name="FluidMesh">
       <use-data name="Forces"/>
-      <use-data name="Displacements"/>
+      <use-data name="DisplacementDeltas"/>
     </mesh>
 
     <mesh name="StructureMesh">
       <use-data name="Forces"/>
-      <use-data name="Displacements"/>
+      <use-data name="DisplacementDeltas"/>
     </mesh>
 
     <participant name="FluidSolver">
       <use-mesh name="FluidMesh" provide="yes"/>
       <use-mesh name="StructureMesh" from="SolidSolver"/>
       <write-data name="Forces" mesh="FluidMesh"/>
-      <read-data  name="Displacements" mesh="FluidMesh"/>
+      <read-data  name="DisplacementDeltas" mesh="FluidMesh"/>
       <mapping:nearest-neighbor direction="write" from="FluidMesh" 
                                 to="StructureMesh" constraint="conservative"/>
       <mapping:nearest-neighbor direction="read" from="StructureMesh" 
@@ -30,7 +30,7 @@
 
     <participant name="SolidSolver">
       <use-mesh name="StructureMesh" provide="yes"/>
-      <write-data name="Displacements" mesh="StructureMesh"/>
+      <write-data name="DisplacementDeltas" mesh="StructureMesh"/>
       <read-data  name="Forces" mesh="StructureMesh"/>
     </participant>
 
@@ -38,10 +38,10 @@
 
     <coupling-scheme:serial-explicit>
       <participants first="FluidSolver" second="SolidSolver"/>
-      <max-time value="1" />
+      <max-time value="0.1" />
       <time-window-size value="0.0001" />
       <exchange data="Forces" mesh="StructureMesh" from="FluidSolver" to="SolidSolver"/>
-      <exchange data="Displacements" mesh="StructureMesh" from="SolidSolver" to="FluidSolver"/>
+      <exchange data="DisplacementDeltas" mesh="StructureMesh" from="SolidSolver" to="FluidSolver"/>
     </coupling-scheme:serial-explicit>
 
   </solver-interface>

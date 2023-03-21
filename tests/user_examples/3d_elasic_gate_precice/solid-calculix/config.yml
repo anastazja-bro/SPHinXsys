@@ -3,8 +3,8 @@ participants:
     SolidSolver:
         interfaces:
         - nodes-mesh: StructureMesh
-          patch: load
+          patch: interface
           read-data: [Forces]
-          write-data: [Displacements]
+          write-data: [DisplacementDeltas]
           
 precice-config-file: ../precice-config.xml
