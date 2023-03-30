@@ -157,7 +157,7 @@ int main()
 	SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
 	SimpleDynamics<NormalDirectionFromBodyShape> gate_normal_direction(gate);
 	InteractionDynamics<solid_dynamics::CorrectConfiguration> gate_corrected_configuration(gate_inner_relation);
-	InteractionDynamics<solid_dynamics::FluidPressureForceOnSolidRiemann> fluid_pressure_force_on_gate(gate_water_contact_relation);
+	InteractionDynamics<solid_dynamics::PressureForceAccelerationFromFluidRiemann> fluid_pressure_force_on_gate(gate_water_contact_relation);
 	solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(gate);
 	//----------------------------------------------------------------------
 	//	Algorithms of Elastic dynamics.
@@ -168,17 +168,17 @@ int main()
 
 	auto constraint = createGateConstraint();
 	BodyRegionByParticle gate_base(gate, constraint);
-	SimpleDynamics<solid_dynamics::FixConstraint, BodyRegionByParticle> constraint_gate_base(gate_base);
+	SimpleDynamics<solid_dynamics::FixBodyPartConstraint> constraint_gate_base(gate_base);
 	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> gate_update_normal(gate);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
 	water_block.addBodyStateForRecording<Real>("Density");
-	gate.addBodyStateForRecording<Vecd>("ForceFromFluid");
+	gate.addBodyStateForRecording<Vecd>("PressureForceFromFluid");
 	BodyStatesRecordingToPlt write_real_body_states_to_plt(io_environment, system.real_bodies_);
 	BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, system.real_bodies_);
 	ObservedQuantityRecording<Vecd>
-		write_force_on_gate("ForceFromFluid", io_environment, gate_observer_contact_relation);
+		write_force_on_gate("PressureForceFromFluid", io_environment, gate_observer_contact_relation);
 	ObservedQuantityRecording<Vecd>
 		write_gate_pos("Position", io_environment, gate_observer_contact_relation);
 	//TODO: observing position is not as good observing displacement. 
@@ -189,9 +189,9 @@ int main()
 
 	system.initializeSystemCellLinkedLists();
 	system.initializeSystemConfigurations();
-	wall_boundary_normal_direction.parallel_exec();
-	gate_normal_direction.parallel_exec();
-	gate_corrected_configuration.parallel_exec();
+	wall_boundary_normal_direction.exec();
+	gate_normal_direction.exec();
+	gate_corrected_configuration.exec();
 	//----------------------------------------------------------------------
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
@@ -199,8 +199,8 @@ int main()
 	int output_interval = 100;
 	Real dt = 0.0;
 	Real dt_s = 0.0;					/**< Default acoustic time step sizes. */
-	tick_count t1 = tick_count::now();
-	tick_count::interval_t interval;
+	TickCount t1 = TickCount::now();
+	TimeInterval interval;
 	//----------------------------------------------------------------------
 	//	First output before the main loop.
 	//----------------------------------------------------------------------
@@ -216,7 +216,7 @@ int main()
 	vertexSize = gate_observer.LoopRange();
 
 	// coords of coupling vertices must be in format (x0,y0,z0,x1,y1,z1,...)
-	vector<double> coords; 
+	StdVec<double> coords; 
 	coords.reserve(vertexSize*dim);
 	for(int index = 0; index < vertexSize; ++index)
 	{
@@ -225,16 +225,16 @@ int main()
 			coords.push_back(gate_observer.getBaseParticles().pos_[index][dimension]);
 		}
 	}
-	vector<int> vertexIDs(vertexSize);
+	StdVec<int> vertexIDs(vertexSize);
 	precice.setMeshVertices(meshID, vertexSize, coords.data(), vertexIDs.data()); 
 
 	int displID = precice.getDataID("DisplacementDeltas", meshID); 
 	int forceID = precice.getDataID("Forces", meshID); 
-	vector<double> forces(vertexSize*dim);
-	vector<double> displacements(vertexSize*dim);
+	StdVec<double> forces(vertexSize*dim);
+	StdVec<double> displacements(vertexSize*dim);
 	// this is done only for Calculix as it only sends absolute displacements
-	vector<double> displacements_previous(vertexSize*dim);
-	vector<double> delta(vertexSize*dim);
+	StdVec<double> displacements_previous(vertexSize*dim);
+	StdVec<double> delta(vertexSize*dim);
 	//
 	double precice_dt; // maximum precice timestep size
 	precice_dt = precice.initialize();
@@ -245,20 +245,20 @@ int main()
 	{
 
 		/** Acceleration due to viscous force and gravity. */
-		initialize_a_fluid_step.parallel_exec();
-		Real Dt = get_fluid_advection_time_step_size.parallel_exec();
-		update_density_by_summation.parallel_exec();
+		initialize_a_fluid_step.exec();
+		Real Dt = get_fluid_advection_time_step_size.exec();
+		update_density_by_summation.exec();
 		/** Update normal direction at elastic body surface. */
-		gate_update_normal.parallel_exec();
+		gate_update_normal.exec();
 		Real relaxation_time = 0.0;
 		while (relaxation_time < Dt)
 		{			
 			/** Fluid relaxation and force computation. */
-			dt = get_fluid_time_step_size.parallel_exec();
-			dt= min(precice_dt, dt);
-			pressure_relaxation.parallel_exec(dt);
+			dt = get_fluid_time_step_size.exec();
+			dt= std::min(precice_dt, dt);
+			pressure_relaxation.exec(dt);
 			/* Compute and write forces */
-			fluid_pressure_force_on_gate.parallel_exec();
+			fluid_pressure_force_on_gate.exec();
 			/* write forces vector for preCICE in format (fx0,fy0,fz0,fx1,fy1,fz1,...)*/
 			//update observers values
 			write_force_on_gate.writeToFile();
@@ -266,11 +266,11 @@ int main()
 			{
 				for(int dimension = 0; dimension < dim; ++dimension)
 				{
-					StdLargeVec<Vecd>& force_from_fluid = *(gate_observer.getBaseParticles().getVariableByName<Vecd>("ForceFromFluid"));
+					StdLargeVec<Vecd>& force_from_fluid = *(gate_observer.getBaseParticles().getVariableByName<Vecd>("PressureForceFromFluid"));
 					forces[index*dim+dimension] = force_from_fluid[index][dimension];
 				}
 			}
-			density_relaxation.parallel_exec(dt);
+			density_relaxation.exec(dt);
 			precice.writeBlockVectorData(forceID, vertexSize, vertexIDs.data(), forces.data());
 				
 			/* advance precice, exchange and process all the data */
@@ -288,18 +288,18 @@ int main()
 			}
 			
 			// set force to 0 so that gate computations are based on the Dirichlet BC
-			StdLargeVec<Vecd>& force_from_fluid_gate = *(gate.getBaseParticles().getVariableByName<Vecd>("ForceFromFluid"));
+			StdLargeVec<Vecd>& force_from_fluid_gate = *(gate.getBaseParticles().getVariableByName<Vecd>("PressureForceFromFluid"));
 			for (size_t iParicle = 0; iParicle < gate.LoopRange(); ++iParicle)
 			{
 				force_from_fluid_gate[iParicle]= Vecd::Zero();
 			}
 			
 			//apply Dirichlet BCs
-			average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
+			average_velocity_and_acceleration.initialize_displacement_.exec();
 			Real dt_s_sum = 0.0;
 			while (dt_s_sum < dt)
 			{
-				dt_s = gate_computing_time_step_size.parallel_exec();
+				dt_s = gate_computing_time_step_size.exec();
 				if (dt - dt_s_sum < dt_s)
 					dt_s = dt - dt_s_sum;
 				for(int index = 0; index < vertexSize; ++index)
@@ -310,8 +310,8 @@ int main()
 						// another possibility is to set positions with known displ and velocities to 0
 					}
 				}
-				gate_stress_relaxation_first_half.parallel_exec(dt_s);
-				constraint_gate_base.parallel_exec();
+				gate_stress_relaxation_first_half.exec(dt_s);
+				constraint_gate_base.exec();
 				for(int index = 0; index < vertexSize; ++index)
 				{
 					for(int dimension = 0; dimension < dim; ++dimension)
@@ -319,10 +319,10 @@ int main()
 						gate.getBaseParticles().vel_[index][dimension] = delta[index*dim+dimension]/dt;
 					}
 				}
-				gate_stress_relaxation_second_half.parallel_exec(dt_s);
+				gate_stress_relaxation_second_half.exec(dt_s);
 				dt_s_sum += dt_s;
 			}
-			average_velocity_and_acceleration.update_averages_.parallel_exec(dt);
+			average_velocity_and_acceleration.update_averages_.exec(dt);
 			write_gate_pos.writeToFile();
 			
 			relaxation_time += dt;
@@ -344,8 +344,8 @@ int main()
 
 
 	}
-	tick_count t2 = tick_count::now();
-	tick_count::interval_t tt;
+	TickCount t2 = TickCount::now();
+	TimeInterval tt;
 	tt = t2 - t1;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 

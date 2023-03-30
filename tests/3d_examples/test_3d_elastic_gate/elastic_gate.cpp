@@ -142,7 +142,7 @@ int main()
 	SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
 	SimpleDynamics<NormalDirectionFromBodyShape> gate_normal_direction(gate);
 	InteractionDynamics<solid_dynamics::CorrectConfiguration> gate_corrected_configuration(gate_inner_relation);
-	InteractionDynamics<solid_dynamics::FluidPressureForceOnSolidRiemann> fluid_pressure_force_on_gate(gate_water_contact_relation);
+	InteractionDynamics<solid_dynamics::PressureForceAccelerationFromFluidRiemann> fluid_pressure_force_on_gate(gate_water_contact_relation);
 	solid_dynamics::AverageVelocityAndAcceleration average_velocity_and_acceleration(gate);
 	//----------------------------------------------------------------------
 	//	Algorithms of Elastic dynamics.
@@ -153,7 +153,7 @@ int main()
 
 	auto constraint = createGateConstraint();
 	BodyRegionByParticle gate_base(gate, constraint);
-	SimpleDynamics<solid_dynamics::FixConstraint, BodyRegionByParticle> constraint_gate_base(gate_base);
+	SimpleDynamics<solid_dynamics::FixBodyPartConstraint> constraint_gate_base(gate_base);
 	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> gate_update_normal(gate);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
@@ -161,7 +161,7 @@ int main()
 	water_block.addBodyStateForRecording<int>("SurfaceIndicator");
 	water_block.addBodyStateForRecording<Real>("MassiveMeasure");
 	water_block.addBodyStateForRecording<Real>("Density");
-	gate.addBodyStateForRecording<Real>("ForceFromFluid");
+	gate.addBodyStateForRecording<Real>("PressureForceFromFluid");
 	BodyStatesRecordingToPlt write_real_body_states_to_plt(io_environment, system.real_bodies_);
 	BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, system.real_bodies_);
 	RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
@@ -174,9 +174,9 @@ int main()
 	//gate_offset_position.parallel_exec();
 	system.initializeSystemCellLinkedLists();
 	system.initializeSystemConfigurations();
-	wall_boundary_normal_direction.parallel_exec();
-	gate_normal_direction.parallel_exec();
-	gate_corrected_configuration.parallel_exec();
+	wall_boundary_normal_direction.exec();
+	gate_normal_direction.exec();
+	gate_corrected_configuration.exec();
 	//----------------------------------------------------------------------
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
@@ -186,8 +186,8 @@ int main()
 	Real output_interval = end_time / 20.0;
 	Real dt = 0.0;					/**< Default acoustic time step sizes. */
 	Real dt_s = 0.0;				/**< Default acoustic time step sizes for solid. */
-	tick_count t1 = tick_count::now();
-	tick_count::interval_t interval;
+	TickCount t1 = TickCount::now();
+	TimeInterval interval;
 	//----------------------------------------------------------------------
 	//	First output before the main loop.
 	//----------------------------------------------------------------------
@@ -203,33 +203,33 @@ int main()
 		while (integration_time < output_interval)
 		{
 			/** Acceleration due to viscous force and gravity. */
-			initialize_a_fluid_step.parallel_exec();
-			Real Dt = get_fluid_advection_time_step_size.parallel_exec();
-			update_density_by_summation.parallel_exec();
+			initialize_a_fluid_step.exec();
+			Real Dt = get_fluid_advection_time_step_size.exec();
+			update_density_by_summation.exec();
 			/** Update normal direction at elastic body surface. */
-			gate_update_normal.parallel_exec();
+			gate_update_normal.exec();
 			Real relaxation_time = 0.0;
 			while (relaxation_time < Dt)
 			{
 				/** Fluid relaxation and force computation. */
-				pressure_relaxation.parallel_exec(dt);
-				fluid_pressure_force_on_gate.parallel_exec();
-				density_relaxation.parallel_exec(dt);
+				pressure_relaxation.exec(dt);
+				fluid_pressure_force_on_gate.exec();
+				density_relaxation.exec(dt);
 				/** Solid dynamics time stepping. */
 				Real dt_s_sum = 0.0;
-				average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
+				average_velocity_and_acceleration.initialize_displacement_.exec();
 				while (dt_s_sum < dt)
 				{
-					dt_s = gate_computing_time_step_size.parallel_exec();
+					dt_s = gate_computing_time_step_size.exec();
 					if (dt - dt_s_sum < dt_s)
 						dt_s = dt - dt_s_sum;
-					gate_stress_relaxation_first_half.parallel_exec(dt_s);
-					constraint_gate_base.parallel_exec();
-					gate_stress_relaxation_second_half.parallel_exec(dt_s);
+					gate_stress_relaxation_first_half.exec(dt_s);
+					constraint_gate_base.exec();
+					gate_stress_relaxation_second_half.exec(dt_s);
 					dt_s_sum += dt_s;
 				}
-				average_velocity_and_acceleration.update_averages_.parallel_exec(dt);
-				dt = get_fluid_time_step_size.parallel_exec();
+				average_velocity_and_acceleration.update_averages_.exec(dt);
+				dt = get_fluid_time_step_size.exec();
 				relaxation_time += dt;
 				integration_time += dt;
 				GlobalStaticVariables::physical_time_ += dt;
@@ -260,12 +260,12 @@ int main()
 					}
 				}
 		}
-		tick_count t2 = tick_count::now();
-		tick_count t3 = tick_count::now();
+		TickCount t2 = TickCount::now();
+		TickCount t3 = TickCount::now();
 		interval += t3 - t2;
 	}
-	tick_count t4 = tick_count::now();
-	tick_count::interval_t tt;
+	TickCount t4 = TickCount::now();
+	TimeInterval tt;
 	tt = t4 - t1 - interval;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
