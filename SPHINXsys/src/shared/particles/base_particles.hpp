@@ -69,6 +69,23 @@ namespace SPH
     }
     //=================================================================================================//
     template <typename VariableType>
+    StdLargeVec<VariableType> *BaseParticles::registerSharedVariable(const std::string &variable_name)
+    {
+        constexpr int type_index = DataTypeIndex<VariableType>::value;
+        if (all_variable_maps_[type_index].find(variable_name) == all_variable_maps_[type_index].end())
+        {
+            StdVec<StdLargeVec<VariableType>> &container = std::get<type_index>(shared_variable_data_);
+            container.push_back(StdLargeVec<VariableType>());
+            registerVariable(container.back(), variable_name);
+            return &container.back();
+        }
+        else
+        {
+            return std::get<type_index>(all_particle_data_)[all_variable_maps_[type_index][variable_name]];
+        }
+    }
+    //=================================================================================================//
+    template <typename VariableType>
     StdLargeVec<VariableType> *BaseParticles::getVariableByName(const std::string &variable_name)
     {
         constexpr int type_index = DataTypeIndex<VariableType>::value;
@@ -214,7 +231,7 @@ namespace SPH
         output_stream << "    ";
         for (size_t i = 0; i != total_real_particles; ++i)
         {
-            Vec3d particle_position = upgradeToVector3D(pos_[i]);
+            Vec3d particle_position = upgradeToVec3d(pos_[i]);
             output_stream << particle_position[0] << " " << particle_position[1] << " " << particle_position[2] << " ";
         }
         output_stream << std::endl;
@@ -247,7 +264,7 @@ namespace SPH
         // compute derived particle variables
         for (auto &derived_variable : derived_variables_)
         {
-            derived_variable->parallel_exec();
+            derived_variable->exec();
         }
 
         // write integers
@@ -292,7 +309,7 @@ namespace SPH
             output_stream << "    ";
             for (size_t i = 0; i != total_real_particles; ++i)
             {
-                Vec3d vector_value = upgradeToVector3D(variable[i]);
+                Vec3d vector_value = upgradeToVec3d(variable[i]);
                 output_stream << std::fixed << std::setprecision(9) << vector_value[0] << " " << vector_value[1] << " " << vector_value[2] << " ";
             }
             output_stream << std::endl;
@@ -309,7 +326,7 @@ namespace SPH
             output_stream << "    ";
             for (size_t i = 0; i != total_real_particles; ++i)
             {
-                Mat3d matrix_value = upgradeToMatrix3D(variable[i]);
+                Mat3d matrix_value = upgradeToMat3d(variable[i]);
                 for (int k = 0; k != 3; ++k)
                 {
                     Vec3d col_vector = matrix_value.col(k);

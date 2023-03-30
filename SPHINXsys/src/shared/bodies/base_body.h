@@ -148,11 +148,11 @@ namespace SPH
 		{
 			sph_adaptation_->registerAdaptationVariables(*base_particles_);
 			ParticleGeneratorType particle_generator(*this, std::forward<ConstructorArgs>(args)...);
-			particle_generator.initializeGeometricVariables();
+			particle_generator.generateParticlesWithBasicVariables();
 			base_particles_->initializeOtherVariables();
-			base_material_->assignBaseParticles(base_particles_);
+			base_material_->initializeLocalParameters(base_particles_);
 		};
-			
+
 		template <typename VariableType>
 		void addBodyStateForRecording(const std::string &variable_name)
 		{
@@ -204,7 +204,7 @@ namespace SPH
 			  cell_linked_list_created_(false)
 		{
 			this->getSPHSystem().real_bodies_.push_back(this);
-			size_t number_of_split_cell_lists = powerN(3, Vecd::Zero().size());
+			size_t number_of_split_cell_lists = pow(3, Vecd::Zero().size());
 			split_cell_lists_.resize(number_of_split_cell_lists);
 		};
 		virtual ~RealBody(){};

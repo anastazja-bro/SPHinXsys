@@ -1,7 +1,7 @@
 /**
  * @file 	test_3d_sphere_compression.cpp
- * @brief 	Shell verificaiton  incl. refinement study
- * @details Circular plaste shell verification case with relaxed shell particles
+ * @brief 	Shell verification  incl. refinement study
+ * @details Circular plastic shell verification case with relaxed shell particles
  * @author 	Bence Rochlitz
  * @ref 	ANSYS Workbench Verification Manual, Release 15.0, November 2013, VMMECH051: Bending of a Circular Plate Using Axisymmetric Elements
  */
@@ -16,14 +16,14 @@ class ShellSphereParticleGenerator : public SurfaceParticleGenerator
 {
 	const StdVec<Vec3d>& pos_0_;
 	const Vec3d center_;
-	const Real particel_area_;
+	const Real particle_area_;
 	const Real thickness_;
 public:
-	explicit ShellSphereParticleGenerator(SPHBody &sph_body, const StdVec<Vec3d>& pos_0, const Vec3d& center, Real particel_area, Real thickness)
+	explicit ShellSphereParticleGenerator(SPHBody &sph_body, const StdVec<Vec3d>& pos_0, const Vec3d& center, Real particle_area, Real thickness)
 		: SurfaceParticleGenerator(sph_body),
 		pos_0_(pos_0),
 		center_(center),
-		particel_area_(particel_area),
+		particle_area_(particle_area),
 		thickness_(thickness)
 		{};
 	virtual void initializeGeometricVariables() override
@@ -31,7 +31,7 @@ public:
 		for (const auto& pos: pos_0_)
 		{
 			Vec3d center_to_pos = pos-center_;
-			initializePositionAndVolumetricMeasure(pos, particel_area_);
+			initializePositionAndVolumetricMeasure(pos, particle_area_);
 			initializeSurfaceProperties(center_to_pos.normalized(), thickness_);
 		}
 	}
@@ -100,8 +100,8 @@ void sphere_compression(int dp_ratio, Real pressure, Real gravity_z)
 	Real total_area = 0.5*4*Pi*radius*radius;
 	std::cout << "total_area: " << total_area << std::endl;
 	// material
-	Real rho = 1e3 * std::pow(unit_mm, 3);
-	Real E = 5e7 * std::pow(unit_mm, 2);
+	Real rho = 1e3 * pow(unit_mm, 3);
+	Real E = 5e7 * pow(unit_mm, 2);
 	Real mu = 0.3;
 	auto material = makeShared<SaintVenantKirchhoffSolid>(rho, E, mu); // NeoHookean always locks one particle with excessive strain
 	Real physical_viscosity = 7e3;
@@ -148,7 +148,7 @@ void sphere_compression(int dp_ratio, Real pressure, Real gravity_z)
 	// pressure boundary condition
 	auto apply_pressure = [&]()
 	{
-		Real pressure_MPa = pressure * std::pow(unit_mm, 2);
+		Real pressure_MPa = pressure * pow(unit_mm, 2);
 		for (size_t i = 0; i < shell_particles->acc_prior_.size(); ++i)
 		{
 			// opposite to normals
@@ -167,7 +167,7 @@ void sphere_compression(int dp_ratio, Real pressure, Real gravity_z)
 	}();
 	constrained_edges.body_part_particles_ = constrained_edge_ids;
 
-	SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion, BodyPartByParticle> constrain_holder(constrained_edges);
+	SimpleDynamics<thin_structure_dynamics::ConstrainShellBodyRegion> constrain_holder(constrained_edges);
 
 	DampingWithRandomChoice<InteractionSplit<DampingBySplittingInner<Vec3d>>>
 		shell_velocity_damping(0.2, shell_body_inner, "Velocity", physical_viscosity);
@@ -177,7 +177,7 @@ void sphere_compression(int dp_ratio, Real pressure, Real gravity_z)
 	/** Apply initial condition. */
 	system.initializeSystemCellLinkedLists();
 	system.initializeSystemConfigurations();
-	corrected_configuration.parallel_exec();
+	corrected_configuration.exec();
 
 	{// tests on initialization
 		{// checking particle distances - avoid bugs of reading file
@@ -216,7 +216,7 @@ void sphere_compression(int dp_ratio, Real pressure, Real gravity_z)
 	Real end_time = 0.5; // 1 is better
 	Real output_period = end_time / 25.0;
 	Real dt = 0.0;
-	tick_count t1 = tick_count::now();
+	TickCount t1 = TickCount::now();
 	/**
 	 * Main loop
 	 */
@@ -237,21 +237,21 @@ void sphere_compression(int dp_ratio, Real pressure, Real gravity_z)
 							<< dt << "\n";
 				}
 
-				initialize_external_force.parallel_exec(dt);
+				initialize_external_force.exec(dt);
 				if (pressure > TinyReal) apply_pressure();
 
-				dt = 0.25 * computing_time_step_size.parallel_exec(); // constant multiplier is related to thickness/dp ratio
+				dt = computing_time_step_size.exec();
 				{// checking for excessive time step reduction
 					if (dt > max_dt) max_dt = dt;
 					if (dt < max_dt/1e3) throw std::runtime_error("time step decreased too much, iteration: " + std::to_string(ite));
 				}
 				
-				stress_relaxation_first_half.parallel_exec(dt);
-				constrain_holder.parallel_exec();
-				shell_velocity_damping.parallel_exec(dt);
-				shell_rotation_damping.parallel_exec(dt);
-				constrain_holder.parallel_exec();
-				stress_relaxation_second_half.parallel_exec(dt);
+				stress_relaxation_first_half.exec(dt);
+				constrain_holder.exec();
+				shell_velocity_damping.exec(dt);
+				shell_rotation_damping.exec(dt);
+				constrain_holder.exec();
+				stress_relaxation_second_half.exec(dt);
 
 				++ite;
 				integral_time += dt;
@@ -274,7 +274,7 @@ void sphere_compression(int dp_ratio, Real pressure, Real gravity_z)
 				max_displacement.push_back(shell_particles->getMaxDisplacement());
 			}
 		}
-		tick_count::interval_t tt = tick_count::now()-t1;
+		TimeInterval tt = TickCount::now()-t1;
 		std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 		std::cout << "max displacement: " << shell_particles->getMaxDisplacement() << std::endl;
 	}

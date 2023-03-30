@@ -48,7 +48,9 @@ namespace SPH
 		public:
 			explicit FreeSurfaceIndicationInner(BaseInnerRelation &inner_relation, Real threshold = 0.75);
 			virtual ~FreeSurfaceIndicationInner(){};
-			void interaction(size_t index_i, Real dt = 0.0);
+			
+			inline void interaction(size_t index_i, Real dt = 0.0);
+			
 			void update(size_t index_i, Real dt = 0.0);
 
 		protected:
@@ -69,7 +71,9 @@ namespace SPH
 			template <typename... ConstructorArgs>
 			explicit SpatialTemporalFreeSurfaceIdentification(ConstructorArgs &&...args);
 			virtual ~SpatialTemporalFreeSurfaceIdentification(){};
-			void interaction(size_t index_i, Real dt = 0.0);
+			
+			inline void interaction(size_t index_i, Real dt = 0.0);
+			
 			void update(size_t index_i, Real dt = 0.0);
 
 		protected:
@@ -125,7 +129,7 @@ namespace SPH
 		 * @class FreeSurfaceHeight
 		 * @brief Probe the free surface profile for a fluid body part by reduced operation.
 		 */
-		class FreeSurfaceHeight : public LocalDynamicsReduce<Real, ReduceMax>,
+		class FreeSurfaceHeight : public BaseLocalDynamicsReduce<Real, ReduceMax, BodyPartByCell>,
 								  public FluidDataSimple
 		{
 		protected:
@@ -133,7 +137,7 @@ namespace SPH
 
 		public:
 			FreeSurfaceHeight(BodyPartByCell &body_part)
-				: LocalDynamicsReduce<Real, ReduceMax>(body_part.getSPHBody(), Real(MinRealNumber)),
+				: BaseLocalDynamicsReduce<Real, ReduceMax, BodyPartByCell>(body_part, Real(MinRealNumber)),
 				  FluidDataSimple(sph_body_), pos_(particles_->pos_)
 			{
 				quantity_name_ = "FreeSurfaceHeight";
@@ -151,7 +155,8 @@ namespace SPH
 		public:
 			explicit ColorFunctionGradientInner(BaseInnerRelation &inner_relation);
 			virtual ~ColorFunctionGradientInner(){};
-			void interaction(size_t index_i, Real dt = 0.0);
+			
+			inline void interaction(size_t index_i, Real dt = 0.0);
 
 		protected:
 			StdLargeVec<int> &surface_indicator_;
@@ -170,7 +175,8 @@ namespace SPH
 		public:
 			explicit ColorFunctionGradientInterpolationInner(BaseInnerRelation &inner_relation);
 			virtual ~ColorFunctionGradientInterpolationInner(){};
-			void interaction(size_t index_i, Real dt = 0.0);
+			
+			inline void interaction(size_t index_i, Real dt = 0.0);
 
 		protected:
 			StdLargeVec<Real> &Vol_;
@@ -191,7 +197,8 @@ namespace SPH
 			SurfaceTensionAccelerationInner(BaseInnerRelation &inner_relation, Real gamma);
 			explicit SurfaceTensionAccelerationInner(BaseInnerRelation &inner_relation);
 			virtual ~SurfaceTensionAccelerationInner(){};
-			void interaction(size_t index_i, Real dt = 0.0);
+			
+			inline void interaction(size_t index_i, Real dt = 0.0);
 
 		protected:
 			Real gamma_;

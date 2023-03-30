@@ -73,14 +73,14 @@ namespace SPH
 	//=================================================================================================//
 	void CellLinkedList ::insertParticleIndex(size_t particle_index, const Vecd &particle_position)
 	{
-		Vecu cellpos = CellIndexFromPosition(particle_position);
-		cell_index_lists_[cellpos[0]][cellpos[1]][cellpos[2]].emplace_back(particle_index);
+		Vecu cell_pos = CellIndexFromPosition(particle_position);
+		cell_index_lists_[cell_pos[0]][cell_pos[1]][cell_pos[2]].emplace_back(particle_index);
 	}
 	//=================================================================================================//
 	void CellLinkedList ::InsertListDataEntry(size_t particle_index, const Vecd &particle_position, Real volumetric)
 	{
-		Vecu cellpos = CellIndexFromPosition(particle_position);
-		cell_data_lists_[cellpos[0]][cellpos[1]][cellpos[2]].emplace_back(
+		Vecu cell_pos = CellIndexFromPosition(particle_position);
+		cell_data_lists_[cell_pos[0]][cell_pos[1]][cell_pos[2]].emplace_back(
 			std::make_tuple(particle_index, particle_position, volumetric));
 	}
 	//=================================================================================================//
@@ -187,64 +187,6 @@ namespace SPH
 					cell_position[third_axis] = k;
 					cell_data_lists[1].first.push_back(&cell_index_lists_[cell_position[0]][cell_position[1]][cell_position[2]]);
 					cell_data_lists[1].second.push_back(&cell_data_lists_[cell_position[0]][cell_position[1]][cell_position[2]]);
-				}
-			}
-		}
-	}
-	//=================================================================================================//
-	void CellLinkedList::
-		tagOneSideBoundingCells(CellLists &cell_data_lists, BoundingBox &bounding_bounds, int axis, bool positive)
-	{
-		int second_axis = SecondAxis(axis);
-		int third_axis = ThirdAxis(axis);
-		Vecu body_lower_bound_cell_ = CellIndexFromPosition(bounding_bounds.first_);
-		Vecu body_upper_bound_cell_ = CellIndexFromPosition(bounding_bounds.second_);
-
-		if (positive)
-		{
-			// upper bound cells
-			for (size_t k = SMAX(int(body_lower_bound_cell_[third_axis]) - 1, 0);
-				 k < (size_t)SMIN(int(body_upper_bound_cell_[third_axis] + 2), int(number_of_cells_[third_axis])); ++k)
-			{
-
-				for (size_t j = SMAX(int(body_lower_bound_cell_[second_axis]) - 1, 0);
-					 j < (size_t)SMIN(int(body_upper_bound_cell_[second_axis] + 2), int(number_of_cells_[second_axis])); ++j)
-				{
-
-					for (size_t i = SMAX(int(body_upper_bound_cell_[axis]) - 1, 0);
-						 i <= (size_t)SMIN(int(body_upper_bound_cell_[axis] + 1), int(number_of_cells_[axis] - 1)); ++i)
-					{
-						Vecu cell_position = Vecu::Zero();
-						cell_position[axis] = i;
-						cell_position[second_axis] = j;
-						cell_position[third_axis] = k;
-						cell_data_lists.first.push_back(&cell_index_lists_[cell_position[0]][cell_position[1]][cell_position[2]]);
-						cell_data_lists.second.push_back(&cell_data_lists_[cell_position[0]][cell_position[1]][cell_position[2]]);
-					}
-				}
-			}
-		}
-		else
-		{
-			// lower bound cells
-			for (size_t k = SMAX(int(body_lower_bound_cell_[third_axis]) - 1, 0);
-				 k < (size_t)SMIN(int(body_upper_bound_cell_[third_axis] + 2), int(number_of_cells_[third_axis])); ++k)
-			{
-
-				for (size_t j = SMAX(int(body_lower_bound_cell_[second_axis]) - 1, 0);
-					 j < (size_t)SMIN(int(body_upper_bound_cell_[second_axis] + 2), int(number_of_cells_[second_axis])); ++j)
-				{
-
-					for (size_t i = SMAX(int(body_lower_bound_cell_[axis]) - 1, 0);
-						 i <= (size_t)SMIN(int(body_lower_bound_cell_[axis] + 1), int(number_of_cells_[axis] - 1)); ++i)
-					{
-						Vecu cell_position = Vecu::Zero();
-						cell_position[axis] = i;
-						cell_position[second_axis] = j;
-						cell_position[third_axis] = k;
-						cell_data_lists.first.push_back(&cell_index_lists_[cell_position[0]][cell_position[1]][cell_position[2]]);
-						cell_data_lists.second.push_back(&cell_data_lists_[cell_position[0]][cell_position[1]][cell_position[2]]);
-					}
 				}
 			}
 		}

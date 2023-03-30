@@ -136,8 +136,8 @@ int main(int ac, char *av[])
 		//----------------------------------------------------------------------
 		//	Particle relaxation starts here.
 		//----------------------------------------------------------------------
-		free_ball_random_particles.parallel_exec(0.25);
-		damping_ball_random_particles.parallel_exec(0.25);
+		free_ball_random_particles.exec(0.25);
+		damping_ball_random_particles.exec(0.25);
 		write_ball_state.writeToFile(0);
 		//----------------------------------------------------------------------
 		//	From here iteration for particle relaxation begins.
@@ -187,10 +187,10 @@ int main(int ac, char *av[])
 	Dynamics1Level<solid_dynamics::Integration1stHalf> damping_ball_stress_relaxation_first_half(damping_ball_inner);
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> damping_ball_stress_relaxation_second_half(damping_ball_inner);
 	/** Algorithms for solid-solid contact. */
-	InteractionDynamics<solid_dynamics::ContactDensitySummation, BodyPartByParticle> free_ball_update_contact_density(free_ball_contact);
-	InteractionDynamics<solid_dynamics::ContactForceFromWall, BodyPartByParticle> free_ball_compute_solid_contact_forces(free_ball_contact);
-	InteractionDynamics<solid_dynamics::ContactDensitySummation, BodyPartByParticle> damping_ball_update_contact_density(damping_ball_contact);
-	InteractionDynamics<solid_dynamics::ContactForceFromWall, BodyPartByParticle> damping_ball_compute_solid_contact_forces(damping_ball_contact);
+	InteractionDynamics<solid_dynamics::ContactDensitySummation> free_ball_update_contact_density(free_ball_contact);
+	InteractionDynamics<solid_dynamics::ContactForceFromWall> free_ball_compute_solid_contact_forces(free_ball_contact);
+	InteractionDynamics<solid_dynamics::ContactDensitySummation> damping_ball_update_contact_density(damping_ball_contact);
+	InteractionDynamics<solid_dynamics::ContactForceFromWall> damping_ball_compute_solid_contact_forces(damping_ball_contact);
 	/** Damping for one ball */
 	DampingWithRandomChoice<InteractionSplit<DampingPairwiseInner<Vec2d>>>
 		damping(0.5, damping_ball_inner, "Velocity", physical_viscosity);
@@ -208,8 +208,8 @@ int main(int ac, char *av[])
 	//----------------------------------------------------------------------
 	sph_system.initializeSystemCellLinkedLists();
 	sph_system.initializeSystemConfigurations();
-	free_ball_corrected_configuration.parallel_exec();
-	damping_ball_corrected_configuration.parallel_exec();
+	free_ball_corrected_configuration.exec();
+	damping_ball_corrected_configuration.exec();
 	//----------------------------------------------------------------------
 	//	Initial states output.
 	//----------------------------------------------------------------------
@@ -228,8 +228,8 @@ int main(int ac, char *av[])
 	//----------------------------------------------------------------------
 	//	Statistics for CPU time
 	//----------------------------------------------------------------------
-	tick_count t1 = tick_count::now();
-	tick_count::interval_t interval;
+	TickCount t1 = TickCount::now();
+	TimeInterval interval;
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
@@ -241,33 +241,33 @@ int main(int ac, char *av[])
 			Real relaxation_time = 0.0;
 			while (relaxation_time < Dt)
 			{
-				free_ball_initialize_timestep.parallel_exec();
-				damping_ball_initialize_timestep.parallel_exec();
+				free_ball_initialize_timestep.exec();
+				damping_ball_initialize_timestep.exec();
 				if (ite % 100 == 0)
 				{
 					std::cout << "N=" << ite << " Time: "
 							  << GlobalStaticVariables::physical_time_ << "	dt: " << dt << "\n";
 				}
-				free_ball_update_contact_density.parallel_exec();
-				free_ball_compute_solid_contact_forces.parallel_exec();
-				free_ball_stress_relaxation_first_half.parallel_exec(dt);
-				free_ball_stress_relaxation_second_half.parallel_exec(dt);
+				free_ball_update_contact_density.exec();
+				free_ball_compute_solid_contact_forces.exec();
+				free_ball_stress_relaxation_first_half.exec(dt);
+				free_ball_stress_relaxation_second_half.exec(dt);
 
 				free_ball.updateCellLinkedList();
 				free_ball_contact.updateConfiguration();
 
-				damping_ball_update_contact_density.parallel_exec();
-				damping_ball_compute_solid_contact_forces.parallel_exec();
-				damping_ball_stress_relaxation_first_half.parallel_exec(dt);
-				damping.parallel_exec(dt);
-				damping_ball_stress_relaxation_second_half.parallel_exec(dt);
+				damping_ball_update_contact_density.exec();
+				damping_ball_compute_solid_contact_forces.exec();
+				damping_ball_stress_relaxation_first_half.exec(dt);
+				damping.exec(dt);
+				damping_ball_stress_relaxation_second_half.exec(dt);
 
 				damping_ball.updateCellLinkedList();
 				damping_ball_contact.updateConfiguration();
 
 				ite++;
-				Real dt_free = free_ball_get_time_step_size.parallel_exec();
-				Real dt_damping = damping_ball_get_time_step_size.parallel_exec();
+				Real dt_free = free_ball_get_time_step_size.exec();
+				Real dt_damping = damping_ball_get_time_step_size.exec();
 				dt = SMIN(dt_free, dt_damping);
 				relaxation_time += dt;
 				integration_time += dt;
@@ -277,14 +277,14 @@ int main(int ac, char *av[])
 				damping_ball_displacement_recording.writeToFile(ite);
 			}
 		}
-		tick_count t2 = tick_count::now();
+		TickCount t2 = TickCount::now();
 		body_states_recording.writeToFile(ite);
-		tick_count t3 = tick_count::now();
+		TickCount t3 = TickCount::now();
 		interval += t3 - t2;
 	}
-	tick_count t4 = tick_count::now();
+	TickCount t4 = TickCount::now();
 
-	tick_count::interval_t tt;
+	TimeInterval tt;
 	tt = t4 - t1 - interval;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 

@@ -77,10 +77,10 @@ int main(int ac, char *av[])
 		//----------------------------------------------------------------------
 		//	Particle relaxation starts here.
 		//----------------------------------------------------------------------
-		random_inserted_body_particles.parallel_exec(0.25);
-		random_water_body_particles.parallel_exec(0.25);
-		relaxation_step_inner.SurfaceBounding().parallel_exec();
-		relaxation_step_complex.SurfaceBounding().parallel_exec();
+		random_inserted_body_particles.exec(0.25);
+		random_water_body_particles.exec(0.25);
+		relaxation_step_inner.SurfaceBounding().exec();
+		relaxation_step_complex.SurfaceBounding().exec();
 		write_real_body_states.writeToFile(0);
 		//----------------------------------------------------------------------
 		//	Relax particles of the insert body.
@@ -88,13 +88,13 @@ int main(int ac, char *av[])
 		int ite_p = 0;
 		while (ite_p < 1000)
 		{
-			relaxation_step_inner.parallel_exec();
-			update_smoothing_length_ratio.parallel_exec();
-			relaxation_step_complex.parallel_exec();
+			relaxation_step_inner.exec();
+			update_smoothing_length_ratio.exec();
+			relaxation_step_complex.exec();
 			ite_p += 1;
 			if (ite_p % 200 == 0)
 			{
-				cout << fixed << setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
+				std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
 				write_real_body_states.writeToFile(ite_p);
 			}
 		}
@@ -112,14 +112,14 @@ int main(int ac, char *av[])
 	SimpleDynamics<TimeStepInitialization> initialize_a_fluid_step(water_block, makeShared<TimeDependentAcceleration>(Vec2d::Zero()));
 	BodyAlignedBoxByParticle emitter(
 		water_block, makeShared<AlignedBoxShape>(Transform2d(Vec2d(emitter_translation)), emitter_halfsize));
-	SimpleDynamics<fluid_dynamics::EmitterInflowInjection, BodyAlignedBoxByParticle> emitter_inflow_injection(emitter, 10, 0);
+	SimpleDynamics<fluid_dynamics::EmitterInflowInjection> emitter_inflow_injection(emitter, 10, 0);
 	/** Emitter buffer inflow condition. */
 	BodyAlignedBoxByCell emitter_buffer(
 		water_block, makeShared<AlignedBoxShape>(Transform2d(Vec2d(emitter_buffer_translation)), emitter_buffer_halfsize));
-	SimpleDynamics<fluid_dynamics::InflowVelocityCondition<FreeStreamVelocity>, BodyAlignedBoxByCell> emitter_buffer_inflow_condition(emitter_buffer, 0.1);
+	SimpleDynamics<fluid_dynamics::InflowVelocityCondition<FreeStreamVelocity>> emitter_buffer_inflow_condition(emitter_buffer, 0.1);
 	BodyAlignedBoxByCell disposer(
 		water_block, makeShared<AlignedBoxShape>(Transform2d(Vec2d(disposer_translation)), disposer_halfsize));
-	SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion, BodyAlignedBoxByCell> disposer_outflow_deletion(disposer, 0);
+	SimpleDynamics<fluid_dynamics::DisposerOutflowDeletion> disposer_outflow_deletion(disposer, 0);
 	/** time-space method to detect surface particles. */
 	InteractionWithUpdate<fluid_dynamics::SpatialTemporalFreeSurfaceIdentificationComplex>
 		free_stream_surface_indicator(water_block_complex);
@@ -153,18 +153,18 @@ int main(int ac, char *av[])
 	//----------------------------------------------------------------------
 	SimpleDynamics<NormalDirectionFromBodyShape> cylinder_normal_direction(cylinder);
 	/** Compute the force exerted on solid body due to fluid pressure and viscosity. */
-	InteractionDynamics<solid_dynamics::FluidPressureForceOnSolid> fluid_pressure_force_on_inserted_body(cylinder_contact);
-	InteractionDynamics<solid_dynamics::FluidViscousForceOnSolid> fluid_viscous_force_on_inserted_body(cylinder_contact);
+	InteractionDynamics<solid_dynamics::PressureForceAccelerationFromFluid> fluid_pressure_force_on_inserted_body(cylinder_contact);
+	InteractionDynamics<solid_dynamics::ViscousForceFromFluid> fluid_viscous_force_on_inserted_body(cylinder_contact);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
 	BodyStatesRecordingToVtp write_real_body_states(io_environment, sph_system.real_bodies_);
 	ObservedQuantityRecording<Vecd>
 		write_fluid_velocity("Velocity", io_environment, fluid_observer_contact);
-	RegressionTestTimeAveraged<ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalViscousForceOnSolid>>>
-		write_total_viscous_force_on_inserted_body(io_environment, cylinder);
-	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceOnSolid>>
-		write_total_force_on_inserted_body(io_environment, cylinder);
+	RegressionTestTimeAveraged<ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>>
+		write_total_viscous_force_on_inserted_body(io_environment, fluid_viscous_force_on_inserted_body, "TotalViscousForceOnSolid");
+	ReducedQuantityRecording<ReduceDynamics<solid_dynamics::TotalForceFromFluid>>
+		write_total_force_on_inserted_body(io_environment, fluid_pressure_force_on_inserted_body, "TotalPressureForceOnSolid");
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
@@ -174,7 +174,7 @@ int main(int ac, char *av[])
 	/** initialize configurations for all bodies. */
 	sph_system.initializeSystemConfigurations();
 	/** computing surface normal direction for the insert body. */
-	cylinder_normal_direction.parallel_exec();
+	cylinder_normal_direction.exec();
 	//----------------------------------------------------------------------
 	//	First output before the main loop.
 	//----------------------------------------------------------------------
@@ -189,8 +189,8 @@ int main(int ac, char *av[])
 	//----------------------------------------------------------------------
 	//	Statistics for CPU time
 	//----------------------------------------------------------------------
-	tick_count t1 = tick_count::now();
-	tick_count::interval_t interval;
+	TickCount t1 = TickCount::now();
+	TimeInterval interval;
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
@@ -200,45 +200,41 @@ int main(int ac, char *av[])
 		/** Integrate time (loop) until the next output time. */
 		while (integration_time < output_interval)
 		{
-			initialize_a_fluid_step.parallel_exec();
-			Real Dt = get_fluid_advection_time_step_size.parallel_exec();
-			free_stream_surface_indicator.parallel_exec();
-			update_fluid_density.parallel_exec();
-			viscous_acceleration.parallel_exec();
-			transport_velocity_correction.parallel_exec();
+			initialize_a_fluid_step.exec();
+			Real Dt = get_fluid_advection_time_step_size.exec();
+			free_stream_surface_indicator.exec();
+			update_fluid_density.exec();
+			viscous_acceleration.exec();
+			transport_velocity_correction.exec();
 
-			/** FSI for viscous force. */
-			fluid_viscous_force_on_inserted_body.parallel_exec();
 			size_t inner_ite_dt = 0;
 			Real relaxation_time = 0.0;
 			while (relaxation_time < Dt)
 			{
-				Real dt = SMIN(get_fluid_time_step_size.parallel_exec(), Dt - relaxation_time);
+				Real dt = SMIN(get_fluid_time_step_size.exec(), Dt - relaxation_time);
 				/** Fluid pressure relaxation, first half. */
-				pressure_relaxation.parallel_exec(dt);
-				/** FSI for pressure force. */
-				fluid_pressure_force_on_inserted_body.parallel_exec();
+				pressure_relaxation.exec(dt);
 				/** Fluid pressure relaxation, second half. */
-				density_relaxation.parallel_exec(dt);
+				density_relaxation.exec(dt);
 
 				relaxation_time += dt;
 				integration_time += dt;
 				GlobalStaticVariables::physical_time_ += dt;
-				emitter_buffer_inflow_condition.parallel_exec();
+				emitter_buffer_inflow_condition.exec();
 				inner_ite_dt++;
 			}
 
 			if (number_of_iterations % screen_output_interval == 0)
 			{
-				cout << fixed << setprecision(9) << "N=" << number_of_iterations << "	Time = "
+				std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << "	Time = "
 					 << GlobalStaticVariables::physical_time_
 					 << "	Dt = " << Dt << "	Dt / dt = " << inner_ite_dt << "\n";
 			}
 			number_of_iterations++;
 
 			/** Water block configuration and periodic condition. */
-			emitter_inflow_injection.parallel_exec();
-			disposer_outflow_deletion.parallel_exec();
+			emitter_inflow_injection.exec();
+			disposer_outflow_deletion.exec();
 
 			water_block.updateCellLinkedListWithParticleSort(100);
 			water_block_complex.updateConfiguration();
@@ -247,22 +243,22 @@ int main(int ac, char *av[])
 			cylinder_contact.updateConfiguration();
 		}
 
-		tick_count t2 = tick_count::now();
+		TickCount t2 = TickCount::now();
 		/** write run-time observation into file */
-		compute_vorticity.parallel_exec();
+		compute_vorticity.exec();
 		write_real_body_states.writeToFile();
 		write_total_viscous_force_on_inserted_body.writeToFile(number_of_iterations);
 		write_total_force_on_inserted_body.writeToFile(number_of_iterations);
 		fluid_observer_contact.updateConfiguration();
 		write_fluid_velocity.writeToFile(number_of_iterations);
-		tick_count t3 = tick_count::now();
+		TickCount t3 = TickCount::now();
 		interval += t3 - t2;
 	}
-	tick_count t4 = tick_count::now();
+	TickCount t4 = TickCount::now();
 
-	tick_count::interval_t tt;
+	TimeInterval tt;
 	tt = t4 - t1 - interval;
-	cout << "Total wall time for computation: " << tt.seconds() << " seconds." << endl;
+	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
 	return 0;
 }

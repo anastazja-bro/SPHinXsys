@@ -31,7 +31,6 @@
 
 #include "base_data_package.h"
 #include "sph_data_containers.h"
-#include "array.h"
 
 #include "SimTKcommon.h"
 #include "SimTKcommon/internal/Xml.h"
@@ -70,75 +69,53 @@ namespace SPH
 		//----------------------------------------------------------------------
 		//	Add an attribute of type string to an xml element.
 		//----------------------------------------------------------------------
-		void setAttributeToElement(const SimTK::Xml::element_iterator &ele_ite, const std::string &attrib_name, const Real &value);
-		void setAttributeToElement(const SimTK::Xml::element_iterator& ele_ite, const std::string& attrib_name, const int& value);
+		template <typename T>
+		void setAttributeToElement(const SimTK::Xml::element_iterator &ele_ite, const std::string &attrib_name, const T &value)
+		{
+			SimTK::Xml::Attribute attr_(attrib_name, SimTK::String(value));
+			ele_ite->setAttributeValue(attr_.getName(), attr_.getValue());
+		};
 
-		template <int DIMENSION>
-		void setAttributeToVectorElement(const SimTK::Xml::element_iterator& ele_ite, const std::string& attrib_name, 
-										 const Eigen::Matrix<Real, DIMENSION, 1>& value)
+		template <int DIMENSION, auto... Rest>
+		void setAttributeToElement(const SimTK::Xml::element_iterator &ele_ite, const std::string &attrib_name,
+								   const Eigen::Matrix<Real, DIMENSION, 1, Rest...> &value)
+		{
+			SimTK::Xml::Attribute attr_(attrib_name, SimTK::String(EigenToSimTK(value)));
+			ele_ite->setAttributeValue(attr_.getName(), attr_.getValue());
+		};
+		template <int DIMENSION, auto... Rest>
+		void setAttributeToElement(const SimTK::Xml::element_iterator &ele_ite, const std::string &attrib_name,
+								   const Eigen::Matrix<Real, DIMENSION, DIMENSION, Rest...> &value)
 		{
 			SimTK::Xml::Attribute attr_(attrib_name, SimTK::String(EigenToSimTK(value)));
 			ele_ite->setAttributeValue(attr_.getName(), attr_.getValue());
 		};
 
-		void setAttributeToElement(const SimTK::Xml::element_iterator &ele_ite, const std::string &attrib_name, const Vec2d &value);
-		void setAttributeToElement(const SimTK::Xml::element_iterator& ele_ite, const std::string& attrib_name, const Vec3d& value);
-
-		template <int DIMENSION>
-		void setAttributeToMatrixElement(const SimTK::Xml::element_iterator& ele_ite, const std::string& attrib_name,
-										 const Eigen::Matrix<Real, DIMENSION, DIMENSION>& value)
-		{
-			SimTK::Array_<Real, int> array_(DIMENSION * DIMENSION);
-			for (int i = 0; i < DIMENSION; i++)
-				for (int j = 0; j < DIMENSION; j++)
-					array_[i * DIMENSION + j] = value(i, j);
-
-			SimTK::Xml::Attribute attr_(attrib_name, SimTK::String(array_));
-			ele_ite->setAttributeValue(attr_.getName(), attr_.getValue());
-		};
-
-		void setAttributeToElement(const SimTK::Xml::element_iterator &ele_ite, const std::string &attrib_name, const Mat2d &value);
-		void setAttributeToElement(const SimTK::Xml::element_iterator& ele_ite, const std::string& attrib_name, const Mat3d& value);
-
 		//----------------------------------------------------------------------
 		//	Get the required attribute value of an element.
 		//----------------------------------------------------------------------
-		void getRequiredAttributeValue(SimTK::Xml::element_iterator &ele_ite_, const std::string &attrib_name, Real &value);
-		void getRequiredAttributeValue(SimTK::Xml::element_iterator &ele_ite_, const std::string &attrib_name, int &value);		
-		
-		template <int DIMENSION>
-		void getVectorAttributeValue(SimTK::Xml::element_iterator& ele_ite_, const std::string& attrib_name,
-			Eigen::Matrix<Real, DIMENSION, 1>& value)
+		template <typename T>
+		void getRequiredAttributeValue(SimTK::Xml::element_iterator &ele_ite_, const std::string &attrib_name, T &value)
+		{
+			std::string value_in_string = ele_ite_->getRequiredAttributeValue(attrib_name);
+			value = SimTK::convertStringTo<T>(value_in_string);
+		};
+
+		template <int DIMENSION, auto... Rest>
+		void getRequiredAttributeValue(SimTK::Xml::element_iterator &ele_ite_, const std::string &attrib_name,
+									   Eigen::Matrix<Real, DIMENSION, 1, Rest...> &value)
 		{
 			std::string value_in_string = ele_ite_->getRequiredAttributeValue(attrib_name);
 			value = SimTKToEigen(SimTK::convertStringTo<SimTK::Vec<DIMENSION>>(value_in_string));
 		};
 
-		void getRequiredAttributeValue(SimTK::Xml::element_iterator &ele_ite_, const std::string &attrib_name, Vec2d &value);
-		void getRequiredAttributeValue(SimTK::Xml::element_iterator& ele_ite_, const std::string& attrib_name, Vec3d& value);
-
-		template <int DIMENSION>
-		void getMatrixAttributeValue(SimTK::Xml::element_iterator& ele_ite_, const std::string& attrib_name,
-			Eigen::Matrix<Real, DIMENSION, DIMENSION>& value)
+		template <int DIMENSION, auto... Rest>
+		void getRequiredAttributeValue(SimTK::Xml::element_iterator &ele_ite_, const std::string &attrib_name,
+									   Eigen::Matrix<Real, DIMENSION, DIMENSION, Rest...> &value)
 		{
 			std::string value_in_string = ele_ite_->getRequiredAttributeValue(attrib_name);
-			SimTK::Array_<Real, int> array_;
-			array_ = SimTK::convertStringTo<SimTK::Array_<Real, int>>(value_in_string);
-
-			if (array_.size() != DIMENSION * DIMENSION)
-			{
-				std::cout << "\n Error: the dimension of data in XML is not valid" << std::endl;
-				std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-				exit(1);
-			}
-
-			for (int i = 0; i < DIMENSION; i++)
-				for (int j = 0; j < DIMENSION; j++)
-					value(i, j) = array_[i * DIMENSION + j];
+			value = SimTKToEigen(SimTK::convertStringTo<SimTK::Mat<DIMENSION,DIMENSION>>(value_in_string));
 		};
-
-		void getRequiredAttributeValue(SimTK::Xml::element_iterator &ele_ite_, const std::string &attrib_name, Mat2d &value);
-		void getRequiredAttributeValue(SimTK::Xml::element_iterator& ele_ite_, const std::string& attrib_name, Mat3d& value);
 
 		/** Write to XML file */
 		void writeToXmlFile(const std::string &filefullpath);

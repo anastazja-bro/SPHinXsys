@@ -59,31 +59,44 @@ namespace SPH
 		return Vec3d(1.0, 0.0, 0.0);
 	};
 	//=================================================================================================//
-	Vec3d upgradeToVector3D(const Real &input)
+	Vec3d upgradeToVec3d(const Real &input)
 	{
 		return Vec3d(input, 0.0, 0.0);
 	}
 	//=================================================================================================//
-	Vec3d upgradeToVector3D(const Vec2d &input)
+	Vec3d upgradeToVec3d(const Vec2d &input)
 	{
 		return Vec3d(input[0], input[1], 0.0);
 	}
 	//=================================================================================================//
-	Vec3d upgradeToVector3D(const Vec3d &input)
+	Vec3d upgradeToVec3d(const Vec3d &input)
 	{
 		return input;
 	}
 	//=================================================================================================//
-	Mat3d upgradeToMatrix3D(const Mat2d &input)
+	Mat3d upgradeToMat3d(const Mat2d &input)
 	{
 		Mat3d output = Mat3d::Zero();
 		output.block<2, 2>(0, 0) = input;
 		return output;
 	}
 	//=================================================================================================//
-	Mat3d upgradeToMatrix3D(const Mat3d &input)
+	Mat3d upgradeToMat3d(const Mat3d &input)
 	{
 		return input;
+	}
+	//=================================================================================================//
+	void degradeToVecd(const Vec3d &input, Vec2d &output)
+	{
+		output[0] = input[0];
+		output[1] = input[1];
+	}
+	//=================================================================================================//
+	void degradeToMatd(const Mat3d &input, Mat2d &output)
+	{
+		for (int i = 0; i != 2; i++)
+			for (int j = 0; j != 2; j++)
+				output(i, j) = input(i, j);
 	}
 	//=================================================================================================//
 	Mat2d getInverse(const Mat2d &A)
@@ -217,11 +230,11 @@ namespace SPH
 		Mat3d transformation_matrix = Mat3d::Zero();
 		Real temp = 1.0 + direction_of_z[2];
 		Real fraction = temp / (temp * temp + Eps);
-		transformation_matrix(0, 0) = direction_of_z[2] + powerN(direction_of_z[1], 2) * fraction;
+		transformation_matrix(0, 0) = direction_of_z[2] + pow(direction_of_z[1], 2) * fraction;
 		transformation_matrix(0, 1) = -direction_of_z[0] * direction_of_z[1] * fraction;
 		transformation_matrix(0, 2) = -direction_of_z[0];
 		transformation_matrix(1, 0) = transformation_matrix(0, 1);
-		transformation_matrix(1, 1) = direction_of_z[2] + powerN(direction_of_z[0], 2) * fraction;
+		transformation_matrix(1, 1) = direction_of_z[2] + pow(direction_of_z[0], 2) * fraction;
 		transformation_matrix(1, 2) = -direction_of_z[1];
 		transformation_matrix(2, 0) = direction_of_z[0];
 		transformation_matrix(2, 1) = direction_of_z[1];
@@ -303,7 +316,7 @@ namespace SPH
 	{
 		// get the projection of the vector_1 on vector 2, which is parallel to the vector_2, meaning it is the vector_2 * scalar
 		Real dot_product_1 = 0.0;
-		Real dot_product_2 = std::pow(vector_2.norm(), 2.0);
+		Real dot_product_2 = vector_2.squaredNorm();
 		for (int i = 0; i < vector_1.size(); i++)
 		{
 			dot_product_1 += vector_1[i] * vector_2[i];
@@ -319,7 +332,7 @@ namespace SPH
 	{
 		// get the projection of the vector_1 on vector 2, which is parallel to the vector_2, meaning it is the vector_2 * scalar
 		Real dot_product_1 = 0.0;
-		Real dot_product_2 = std::pow(vector_2.norm(), 2.0);
+		Real dot_product_2 = vector_2.squaredNorm();
 		for (int i = 0; i < vector_1.size(); i++)
 		{
 			dot_product_1 += vector_1[i] * vector_2[i];
