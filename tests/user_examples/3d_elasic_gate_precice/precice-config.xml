@@ -22,9 +22,9 @@
       <use-mesh name="StructureMesh" from="SolidSolver"/>
       <write-data name="Forces" mesh="FluidMesh"/>
       <read-data  name="DisplacementDeltas" mesh="FluidMesh"/>
-      <mapping:nearest-neighbor direction="write" from="FluidMesh" 
+      <mapping:rbf-thin-plate-splines direction="write" from="FluidMesh" 
                                 to="StructureMesh" constraint="conservative"/>
-      <mapping:nearest-neighbor direction="read" from="StructureMesh" 
+      <mapping:rbf-thin-plate-splines direction="read" from="StructureMesh" 
                                 to="FluidMesh" constraint="consistent"/>
     </participant>
 
@@ -34,12 +34,12 @@
       <read-data  name="Forces" mesh="StructureMesh"/>
     </participant>
 
-    <m2n:sockets from="FluidSolver" to="SolidSolver" exchange-directory="../.."/>
+    <m2n:sockets from="FluidSolver" to="SolidSolver" exchange-directory="../"/>
 
     <coupling-scheme:serial-explicit>
       <participants first="FluidSolver" second="SolidSolver"/>
-      <max-time value="0.1" />
-      <time-window-size value="0.0001" />
+      <max-time value="0.05" />
+      <time-window-size method="first-participant" />
       <exchange data="Forces" mesh="StructureMesh" from="FluidSolver" to="SolidSolver"/>
       <exchange data="DisplacementDeltas" mesh="StructureMesh" from="SolidSolver" to="FluidSolver"/>
     </coupling-scheme:serial-explicit>

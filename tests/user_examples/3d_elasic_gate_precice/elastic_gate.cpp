@@ -20,8 +20,6 @@ Real Gate_width = 0.005;					/**< Width of the gate. */
 Real Base_bottom_position = 0.079;		/**< Position of gate base. (In Y direction) */
 Real resolution_ref = 0.002; /**< Initial reference particle spacing. */
 Real BW = resolution_ref * 4.0;			/**< Extending width for BCs. */
-Vecd observer_pos(Dam_L + Gate_width, 0, DW / 2);
-StdVec<Vecd> observation_location = {observer_pos};
 
 
 //----------------------------------------------------------------------
@@ -58,11 +56,9 @@ public:
 	{
 		Vecd halfsize_outer(0.5 * DL + BW, 0.5 * DH + BW, 0.5 * DW + BW);
 		Vecd halfsize_inner(0.5 * DL, 0.5 * DH, 0.5 * DW);
-		Vecd halfsize_gate(0.5 * Gate_width, 0.5 * (DH - Base_bottom_position) , 0.5 * DW);
-		Vecd translation_gate(Dam_L + 0.5 * Gate_width, 0.5 * (DH + Base_bottom_position), 0.5 * DW );
-		add<TransformShape<GeometricShapeBox>>(Transformd(halfsize_inner), halfsize_outer);
-		subtract<TransformShape<GeometricShapeBox>>(Transformd(halfsize_inner), halfsize_inner);
-		add<TransformShape<GeometricShapeBox>>(Transformd(translation_gate), halfsize_gate);
+		Transformd translation_wall(halfsize_inner);
+		add<TransformShape<GeometricShapeBox>>(Transformd(translation_wall), halfsize_outer);
+		subtract<TransformShape<GeometricShapeBox>>(Transformd(translation_wall), halfsize_inner);
 	}
 };
 
@@ -71,11 +67,36 @@ class GateShape : public ComplexShape
 public:
 	explicit GateShape(const std::string &shape_name) : ComplexShape(shape_name)
 	{
-		Vecd halfsize_gate(0.51 * resolution_ref, 0.5 * (Base_bottom_position - 0.001), 0.5 * DW);
-		Vecd translation_gate(Dam_L + 0.26 * resolution_ref, 0.5 * (Base_bottom_position + 0.001), 0.5 * DW );
+		Vecd halfsize_gate(0.5 * Gate_width, 0.5 * DH, 0.5 * DW);
+		Vecd translation_gate(Dam_L + 0.5 * Gate_width, 0.5 * DH, 0.5 * DW );
 		add<TransformShape<GeometricShapeBox>>(Transformd(translation_gate), halfsize_gate);
 	}
 };
+
+SharedPtr<ComplexShape> createGateConstraint()
+{
+	auto constraint = makeShared<ComplexShape>("Constraint");
+	Vecd halfsize_gate(0.5 * Gate_width, 0.5 * (DH - Base_bottom_position) , 0.5 * DW);
+	Vecd translation_gate(Dam_L + 0.5 * Gate_width, 0.5 * (DH + Base_bottom_position), 0.5 * DW );
+	constraint->add<TransformShape<GeometricShapeBox>>(Transformd(translation_gate), halfsize_gate);
+	return constraint;
+}
+
+StdVec<Vecd> getObserversLocation()
+{
+	StdVec<Vecd> observation_loacation;
+	observation_loacation.reserve(79*20);
+	for (size_t y_pos = 0; y_pos < 79; ++y_pos)
+	{
+		for (size_t z_pos = 0; z_pos < 20; ++z_pos)
+		{
+			Vecd pos(Dam_L, y_pos * resolution_ref / 2, z_pos * resolution_ref / 2);
+			observation_loacation.push_back(pos);
+		}
+	}
+	return observation_loacation;
+}
+
 
 //----------------------------------------------------------------------
 //	Main program starts here.
@@ -100,13 +121,13 @@ int main()
 	wall_boundary.generateParticles<ParticleGeneratorLattice>();
 
 	SolidBody gate(system, makeShared<GateShape>("Gate"));
-	//gate.defineAdaptationRatios(1.15, 2.0);
+	gate.defineAdaptationRatios(1.15, 2.0);
 	gate.defineParticlesAndMaterial<ElasticSolidParticles, SaintVenantKirchhoffSolid>(rho0_s, Youngs_modulus, poisson);
 	gate.generateParticles<ParticleGeneratorLattice>();
 
-	// ObserverBody gate_observer(system, "Observer");
-	// gate_observer.defineAdaptationRatios(1.15, 2.0);
-	// gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
+	ObserverBody gate_observer(system, "Observer");
+	StdVec<Vecd> observation_location = getObserversLocation();
+	gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
 	//----------------------------------------------------------------------
 	//	Define body relation map.
 	//	The contact map gives the topological connections between the bodies.
@@ -115,7 +136,7 @@ int main()
 	ComplexRelation water_block_complex_relation(water_block, RealBodyVector{&wall_boundary, &gate});
 	InnerRelation gate_inner_relation(gate);
 	ContactRelation gate_water_contact_relation(gate, {&water_block});
-	//ContactRelation gate_observer_contact_relation(gate_observer, {&gate});
+	ContactRelation gate_observer_contact_relation(gate_observer, {&gate});
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
@@ -145,21 +166,27 @@ int main()
 	Dynamics1Level<solid_dynamics::Integration2ndHalf> gate_stress_relaxation_second_half(gate_inner_relation);
 	ReduceDynamics<solid_dynamics::AcousticTimeStepSize> gate_computing_time_step_size(gate);
 
+	auto constraint = createGateConstraint();
+	BodyRegionByParticle gate_base(gate, constraint);
+	SimpleDynamics<solid_dynamics::FixConstraint, BodyRegionByParticle> constraint_gate_base(gate_base);
 	SimpleDynamics<solid_dynamics::UpdateElasticNormalDirection> gate_update_normal(gate);
 	//----------------------------------------------------------------------
 	//	Define the methods for I/O operations and observations of the simulation.
 	//----------------------------------------------------------------------
 	water_block.addBodyStateForRecording<Real>("Density");
+	gate.addBodyStateForRecording<Vecd>("ForceFromFluid");
 	BodyStatesRecordingToPlt write_real_body_states_to_plt(io_environment, system.real_bodies_);
 	BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, system.real_bodies_);
-	//RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
-	//	write_beam_tip_displacement("Position", io_environment, gate_observer_contact_relation);
+	ObservedQuantityRecording<Vecd>
+		write_force_on_gate("ForceFromFluid", io_environment, gate_observer_contact_relation);
+	ObservedQuantityRecording<Vecd>
+		write_gate_pos("Position", io_environment, gate_observer_contact_relation);
 	//TODO: observing position is not as good observing displacement. 
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
 	//	and case specified initial condition if necessary.
 	//----------------------------------------------------------------------
-	//gate_offset_position.parallel_exec();
+
 	system.initializeSystemCellLinkedLists();
 	system.initializeSystemConfigurations();
 	wall_boundary_normal_direction.parallel_exec();
@@ -169,15 +196,16 @@ int main()
 	//	Setup for time-stepping control
 	//----------------------------------------------------------------------
 	int number_of_iterations = 0;
-	int screen_output_interval = 10;
-	Real dt = 0.0;					/**< Default acoustic time step sizes. */
+	int output_interval = 100;
+	Real dt = 0.0;
+	Real dt_s = 0.0;					/**< Default acoustic time step sizes. */
 	tick_count t1 = tick_count::now();
 	tick_count::interval_t interval;
 	//----------------------------------------------------------------------
 	//	First output before the main loop.
 	//----------------------------------------------------------------------
 	write_real_body_states_to_vtp.writeToFile();
-	//write_beam_tip_displacement.writeToFile();
+	write_force_on_gate.writeToFile();
 	//----------------------------------------------------------------------
 	// preCICE set up
 	//----------------------------------------------------------------------
@@ -185,7 +213,7 @@ int main()
 	int dim = precice.getDimensions();
 	int meshID = precice.getMeshID("FluidMesh");
 	int vertexSize; // number of vertices at wet surface 
-	vertexSize = gate.LoopRange();
+	vertexSize = gate_observer.LoopRange();
 
 	// coords of coupling vertices must be in format (x0,y0,z0,x1,y1,z1,...)
 	vector<double> coords; 
@@ -194,7 +222,7 @@ int main()
 	{
 		for(int dimension = 0; dimension < dim; ++dimension)
 		{
-			coords.push_back(gate.getBaseParticles().pos_[index][dimension]);
+			coords.push_back(gate_observer.getBaseParticles().pos_[index][dimension]);
 		}
 	}
 	vector<int> vertexIDs(vertexSize);
@@ -204,7 +232,10 @@ int main()
 	int forceID = precice.getDataID("Forces", meshID); 
 	vector<double> forces(vertexSize*dim);
 	vector<double> displacements(vertexSize*dim);
-
+	// this is done only for Calculix as it only sends absolute displacements
+	vector<double> displacements_previous(vertexSize*dim);
+	vector<double> delta(vertexSize*dim);
+	//
 	double precice_dt; // maximum precice timestep size
 	precice_dt = precice.initialize();
 	//----------------------------------------------------------------------
@@ -229,43 +260,75 @@ int main()
 			/* Compute and write forces */
 			fluid_pressure_force_on_gate.parallel_exec();
 			/* write forces vector for preCICE in format (fx0,fy0,fz0,fx1,fy1,fz1,...)*/
+			//update observers values
+			write_force_on_gate.writeToFile();
 			for(int index = 0; index < vertexSize; ++index)
 			{
 				for(int dimension = 0; dimension < dim; ++dimension)
 				{
-					StdLargeVec<Vecd>& force_from_fluid = *(gate.getBaseParticles().getVariableByName<Vecd>("ForceFromFluid"));
+					StdLargeVec<Vecd>& force_from_fluid = *(gate_observer.getBaseParticles().getVariableByName<Vecd>("ForceFromFluid"));
 					forces[index*dim+dimension] = force_from_fluid[index][dimension];
 				}
 			}
-			precice.writeBlockVectorData(forceID, vertexSize, vertexIDs.data(), forces.data());
 			density_relaxation.parallel_exec(dt);
-
+			precice.writeBlockVectorData(forceID, vertexSize, vertexIDs.data(), forces.data());
 				
 			/* advance precice, exchange and process all the data */
 			precice_dt = precice.advance(dt);
-			// read displacements from preCICE 
-			if(precice.isTimeWindowComplete())
+			
+			//make a copy of displ from previous step (only for Calculix)
+			displacements_previous = displacements;
+			// read displacements from preCICE and set Dirichlet BC 
+			precice.readBlockVectorData(displID, vertexSize, vertexIDs.data(), displacements.data());
+			// compute deltas (only for Calculix)
+			
+			for (size_t index=0; index<delta.size(); ++index)
 			{
-				precice.readBlockVectorData(displID, vertexSize, vertexIDs.data(), displacements.data());
-				/** update positions  */
-				average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
-	
+				delta[index] = displacements[index] - displacements_previous[index];
+			}
+			
+			// set force to 0 so that gate computations are based on the Dirichlet BC
+			StdLargeVec<Vecd>& force_from_fluid_gate = *(gate.getBaseParticles().getVariableByName<Vecd>("ForceFromFluid"));
+			for (size_t iParicle = 0; iParicle < gate.LoopRange(); ++iParicle)
+			{
+				force_from_fluid_gate[iParicle]= Vecd::Zero();
+			}
+			
+			//apply Dirichlet BCs
+			average_velocity_and_acceleration.initialize_displacement_.parallel_exec();
+			Real dt_s_sum = 0.0;
+			while (dt_s_sum < dt)
+			{
+				dt_s = gate_computing_time_step_size.parallel_exec();
+				if (dt - dt_s_sum < dt_s)
+					dt_s = dt - dt_s_sum;
 				for(int index = 0; index < vertexSize; ++index)
 				{
 					for(int dimension = 0; dimension < dim; ++dimension)
 					{
-						gate.getBaseParticles().pos_[index][dimension] += displacements[index*dim+dimension];
+						gate.getBaseParticles().vel_[index][dimension] = delta[index*dim+dimension]/dt;
+						// another possibility is to set positions with known displ and velocities to 0
 					}
 				}
-				average_velocity_and_acceleration.update_averages_.parallel_exec(dt);
+				gate_stress_relaxation_first_half.parallel_exec(dt_s);
+				constraint_gate_base.parallel_exec();
+				for(int index = 0; index < vertexSize; ++index)
+				{
+					for(int dimension = 0; dimension < dim; ++dimension)
+					{
+						gate.getBaseParticles().vel_[index][dimension] = delta[index*dim+dimension]/dt;
+					}
+				}
+				gate_stress_relaxation_second_half.parallel_exec(dt_s);
+				dt_s_sum += dt_s;
 			}
+			average_velocity_and_acceleration.update_averages_.parallel_exec(dt);
+			write_gate_pos.writeToFile();
 			
-
 			relaxation_time += dt;
 			GlobalStaticVariables::physical_time_ += dt;
-
-
-			if (number_of_iterations % screen_output_interval == 0)
+			
+			if (number_of_iterations % output_interval == 0)
 			{
 				write_real_body_states_to_vtp.writeToFile();
 			}
@@ -278,8 +341,7 @@ int main()
 		gate.updateCellLinkedList();
 		water_block_complex_relation.updateConfiguration();
 		gate_water_contact_relation.updateConfiguration();
-		/** Output the observed data. */
-		//write_beam_tip_displacement.writeToFile(number_of_iterations);
+
 
 	}
 	tick_count t2 = tick_count::now();
@@ -287,7 +349,6 @@ int main()
 	tt = t2 - t1;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
-	//write_beam_tip_displacement.newResultTest();
 
 	/* finalize preCICE */
 	precice.finalize();
