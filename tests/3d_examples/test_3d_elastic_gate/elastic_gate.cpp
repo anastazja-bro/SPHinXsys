@@ -83,6 +83,21 @@ SharedPtr<ComplexShape> createGateConstraint()
 	return constraint;
 }
 
+StdVec<Vecd> getObserversLocation()
+{
+	StdVec<Vecd> observation_loacation;
+	observation_loacation.reserve(79*20);
+	for (size_t y_pos = 0; y_pos < 79; ++y_pos)
+	{
+		for (size_t z_pos = 0; z_pos < 20; ++z_pos)
+		{
+			Vecd pos(Dam_L, y_pos * resolution_ref / 2, z_pos * resolution_ref / 2);
+			observation_loacation.push_back(pos);
+		}
+	}
+	return observation_loacation;
+}
+
 //----------------------------------------------------------------------
 //	Main program starts here.
 //----------------------------------------------------------------------
@@ -111,7 +126,7 @@ int main()
 	gate.generateParticles<ParticleGeneratorLattice>();
 
 	ObserverBody gate_observer(system, "Observer");
-	gate_observer.defineAdaptationRatios(1.15, 2.0);
+	StdVec<Vecd> observation_location = getObserversLocation();
 	gate_observer.generateParticles<ObserverParticleGenerator>(observation_location);
 	//----------------------------------------------------------------------
 	//	Define body relation map.
@@ -121,7 +136,7 @@ int main()
 	ComplexRelation water_block_complex_relation(water_block, RealBodyVector{&wall_boundary, &gate});
 	InnerRelation gate_inner_relation(gate);
 	ContactRelation gate_water_contact_relation(gate, {&water_block});
-	ContactRelation gate_observer_contact_relation(gate_observer, {&gate});
+	ContactRelation gate_observer_contact_relation(gate_observer, {&gate});	
 	//----------------------------------------------------------------------
 	//	Define the main numerical methods used in the simulation.
 	//	Note that there may be data dependence on the constructors of these methods.
@@ -161,11 +176,19 @@ int main()
 	water_block.addBodyStateForRecording<int>("SurfaceIndicator");
 	water_block.addBodyStateForRecording<Real>("MassiveMeasure");
 	water_block.addBodyStateForRecording<Real>("Density");
-	gate.addBodyStateForRecording<Real>("PressureForceFromFluid");
+	//gate.addBodyStateForRecording<Real>("PressureForceFromFluid");
 	BodyStatesRecordingToPlt write_real_body_states_to_plt(io_environment, system.real_bodies_);
 	BodyStatesRecordingToVtp write_real_body_states_to_vtp(io_environment, system.real_bodies_);
-	RegressionTestDynamicTimeWarping<ObservedQuantityRecording<Vecd>>
-		write_beam_tip_displacement("Position", io_environment, gate_observer_contact_relation);
+	ObservedQuantityRecording<Vecd>
+		write_force_on_gate("PressureForceFromFluid", io_environment, gate_observer_contact_relation);
+	ObservedQuantityRecording<Vecd>
+		write_gate_pos("Position", io_environment, gate_observer_contact_relation);
+	BodyStatesRecordingToVtp write_observer_to_vtp(io_environment, gate_observer);
+	gate_observer.addBodyStateForRecording<Vecd>("Position");
+	gate_observer.addBodyStateForRecording<Vecd>("Acceleration");
+	gate_observer.addBodyStateForRecording<Vecd>("PriorAcceleration");
+	gate_observer.addBodyStateForRecording<Vecd>("PressureForceFromFluid");
+
 	//TODO: observing position is not as good observing displacement. 
 	//----------------------------------------------------------------------
 	//	Prepare the simulation with cell linked list, configuration
@@ -192,7 +215,7 @@ int main()
 	//	First output before the main loop.
 	//----------------------------------------------------------------------
 	write_real_body_states_to_vtp.writeToFile();
-	write_beam_tip_displacement.writeToFile();
+	//write_beam_tip_displacement.writeToFile();
 	//----------------------------------------------------------------------
 	//	Main loop starts here.
 	//----------------------------------------------------------------------
@@ -229,10 +252,12 @@ int main()
 					dt_s_sum += dt_s;
 				}
 				average_velocity_and_acceleration.update_averages_.exec(dt);
-				dt = get_fluid_time_step_size.exec();
 				relaxation_time += dt;
 				integration_time += dt;
 				GlobalStaticVariables::physical_time_ += dt;
+				dt = get_fluid_time_step_size.exec();
+				write_observer_to_vtp.writeToFile();
+
 			}
 
 			if (number_of_iterations % screen_output_interval == 0)
@@ -241,6 +266,7 @@ int main()
 						  << GlobalStaticVariables::physical_time_
 						  << "	Dt = " << Dt << "	dt = " << dt << "	dt_s = " << dt_s << "\n";
 				write_real_body_states_to_vtp.writeToFile();
+
 			}
 			number_of_iterations++;
 
@@ -250,7 +276,7 @@ int main()
 			water_block_complex_relation.updateConfiguration();
 			gate_water_contact_relation.updateConfiguration();
 			/** Output the observed data. */
-			write_beam_tip_displacement.writeToFile(number_of_iterations);
+			//write_beam_tip_displacement.writeToFile(number_of_iterations);
 			StdLargeVec<int>& surface_indicator =*(water_block.getBaseParticles().getVariableByName<int>("SurfaceIndicator"));
 				for (size_t index = 0; index < surface_indicator.size(); ++index)
 				{
@@ -269,7 +295,7 @@ int main()
 	tt = t4 - t1 - interval;
 	std::cout << "Total wall time for computation: " << tt.seconds() << " seconds." << std::endl;
 
-	write_beam_tip_displacement.newResultTest();
+	//write_beam_tip_displacement.newResultTest();
 
 	return 0;
 }
